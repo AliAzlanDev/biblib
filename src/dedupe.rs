@@ -101,72 +101,7 @@ use regex::Regex;
 use strsim::jaro;
 use strsim::jaro_winkler;
 use once_cell::sync::Lazy;
-
-/// Represents an author of a citation.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Author {
-    /// The author's family name (surname)
-    pub family_name: String,
-    /// The author's given name (first name)
-    pub given_name: String,
-    /// Optional affiliation
-    pub affiliation: Option<String>,
-}
-
-/// Represents a single citation with its metadata.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Citation {
-    pub id: String,
-    /// Type of the citation
-    pub citation_type: Vec<String>,
-    /// Title of the work
-    pub title: String,
-    /// List of authors
-    pub authors: Vec<Author>,
-    /// Journal name
-    pub journal: Option<String>,
-    /// Journal abbreviation
-    pub journal_abbr: Option<String>,
-    /// Publication year
-    pub year: Option<i32>,
-    /// Volume number
-    pub volume: Option<String>,
-    /// Issue number
-    pub issue: Option<String>,
-    /// Page range
-    pub pages: Option<String>,
-    /// ISSN of the journal
-    pub issn: Vec<String>,
-    /// Digital Object Identifier
-    pub doi: Option<String>,
-    /// PubMed ID
-    pub pmid: Option<String>,
-    /// PMC ID
-    pub pmc_id: Option<String>,
-    /// Abstract text
-    pub abstract_text: Option<String>,
-    /// Keywords
-    pub keywords: Vec<String>,
-    /// URLs
-    pub urls: Vec<String>,
-    /// Language
-    pub language: Option<String>,
-    /// MeSH Terms
-    pub mesh_terms: Vec<String>,
-    /// Publisher
-    pub publisher: Option<String>,
-    /// Additional fields not covered by standard fields
-    pub extra_fields: HashMap<String, Vec<String>>,
-}
-
-/// Represents a group of duplicate citations with one unique citation
-#[derive(Debug, Clone)]
-pub struct DuplicateGroup {
-    /// The unique (original) citation
-    pub unique: Citation,
-    /// The duplicate citations
-    pub duplicates: Vec<Citation>,
-}
+use crate::{DuplicateGroup, Citation};
 
 const DOI_TITLE_SIMILARITY_THRESHOLD: f64 = 0.85;
 const NO_DOI_TITLE_SIMILARITY_THRESHOLD: f64 = 0.93;
