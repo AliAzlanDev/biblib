@@ -1,7 +1,7 @@
 //! CSV format parser implementation.
 //!
 //! This module provides functionality to parse CSV formatted citations with configurable headers.
-//! 
+//!
 //! # Example
 //!
 //! ```
@@ -13,19 +13,22 @@
 //! assert_eq!(citations[0].title, "Example Paper");
 //! ```
 
-use std::collections::HashMap;
 use csv::{ReaderBuilder, StringRecord};
 use nanoid::nanoid;
+use std::collections::HashMap;
 
+use crate::utils::{format_doi, format_page_numbers, parse_author_name, split_issns};
 use crate::{Author, Citation, CitationError, CitationParser, DuplicateGroup, Result};
-use crate::utils::{parse_author_name, format_doi, format_page_numbers, split_issns};
 
 /// Default header mappings for common CSV column names
 const DEFAULT_HEADERS: &[(&str, &[&str])] = &[
     ("id", &["id", "citation_id"]),
     ("title", &["title", "article title", "publication title"]),
     ("authors", &["author", "authors", "creator", "creators"]),
-    ("journal", &["journal", "journal title", "source title", "publication"]),
+    (
+        "journal",
+        &["journal", "journal title", "source title", "publication"],
+    ),
     ("year", &["year", "publication year", "pub year"]),
     ("volume", &["volume", "vol"]),
     ("issue", &["issue", "number", "no"]),
@@ -117,7 +120,8 @@ impl CsvConfig {
     /// Finds the field name for a given header
     fn get_field_for_header(&self, header: &str) -> Option<String> {
         let header_lower = header.to_lowercase();
-        self.header_map.iter()
+        self.header_map
+            .iter()
             .find(|(_, aliases)| aliases.iter().any(|a| a.to_lowercase() == header_lower))
             .map(|(field, _)| field.clone())
     }
@@ -197,7 +201,7 @@ impl CsvParser {
                             citation.id = value.to_string();
                             has_id = true;
                         }
-                    },
+                    }
                     "title" => citation.title = value.to_string(),
                     "authors" => {
                         for author_str in value.split(';') {
@@ -222,10 +226,11 @@ impl CsvParser {
                     "abstract" => citation.abstract_text = Some(value.to_string()),
                     "keywords" => {
                         citation.keywords.extend(
-                            value.split(';')
+                            value
+                                .split(';')
                                 .map(str::trim)
                                 .filter(|s| !s.is_empty())
-                                .map(String::from)
+                                .map(String::from),
                         );
                     }
                     "issn" => {
@@ -239,9 +244,10 @@ impl CsvParser {
                         if !value.is_empty() {
                             citation.duplicate_id = Some(value.to_string())
                         }
-                    },
+                    }
                     _ => {
-                        citation.extra_fields
+                        citation
+                            .extra_fields
                             .entry(field)
                             .or_default()
                             .push(value.to_string());
@@ -260,16 +266,14 @@ impl CsvParser {
     /// Parse and group citations by duplicate ID
     pub fn parse_with_duplicates(&self, input: &str) -> Result<Vec<DuplicateGroup>> {
         let citations = self.parse(input)?;
-        
+
         let mut groups: HashMap<String, Vec<Citation>> = HashMap::new();
         let mut single_uniques = Vec::new();
-        
+
         // First pass - separate citations with duplicate_id from standalone uniques
         for citation in citations {
             if let Some(dup_id) = &citation.duplicate_id {
-                groups.entry(dup_id.clone())
-                    .or_default()
-                    .push(citation);
+                groups.entry(dup_id.clone()).or_default().push(citation);
             } else if citation.label.as_deref() == Some("Unique") {
                 // Collect unique citations that don't have a duplicate_id
                 single_uniques.push(citation);
@@ -278,25 +282,27 @@ impl CsvParser {
 
         // Convert groups into DuplicateGroups
         let mut result = Vec::new();
-        
+
         // Process groups with duplicates
         for (_id, mut citations) in groups {
-            if let Some(unique_idx) = citations.iter().position(|c| c.label.as_deref() == Some("Unique")) {
+            if let Some(unique_idx) = citations
+                .iter()
+                .position(|c| c.label.as_deref() == Some("Unique"))
+            {
                 let unique = citations.remove(unique_idx);
-                let duplicates = citations.into_iter()
+                let duplicates = citations
+                    .into_iter()
                     .filter(|c| c.label.as_deref() == Some("Duplicate"))
                     .collect();
-                result.push(DuplicateGroup {
-                    unique,
-                    duplicates,
-                });
+                result.push(DuplicateGroup { unique, duplicates });
             } else {
-                return Err(CitationError::MissingField(
-                    format!("No unique citation found for duplicate group {}", _id)
-                ));
+                return Err(CitationError::MissingField(format!(
+                    "No unique citation found for duplicate group {}",
+                    _id
+                )));
             }
         }
-        
+
         // Add single unique citations as groups with empty duplicates vec
         for unique in single_uniques {
             result.push(DuplicateGroup {
@@ -317,17 +323,18 @@ impl CitationParser for CsvParser {
             .from_reader(input.as_bytes());
 
         let headers: Vec<String> = if self.config.has_header {
-            reader.headers()
+            reader
+                .headers()
                 .map_err(|e| CitationError::InvalidFormat(e.to_string()))?
                 .iter()
                 .map(String::from)
                 .collect()
         } else {
             // Use column numbers as headers if no headers present
-            (0..reader.headers()
+            (0..reader
+                .headers()
                 .map_err(|e| CitationError::InvalidFormat(e.to_string()))?
-                .len()
-            )
+                .len())
                 .map(|i| format!("Column{}", i + 1))
                 .collect()
         };
@@ -370,10 +377,11 @@ Article Name,Writers,Published,Source
 Test Paper,Smith J,2023,Test Journal";
 
         let mut config = CsvConfig::new();
-        config.set_header_mapping("title", vec!["Article Name".to_string()])
-              .set_header_mapping("authors", vec!["Writers".to_string()])
-              .set_header_mapping("year", vec!["Published".to_string()])
-              .set_header_mapping("journal", vec!["Source".to_string()]);
+        config
+            .set_header_mapping("title", vec!["Article Name".to_string()])
+            .set_header_mapping("authors", vec!["Writers".to_string()])
+            .set_header_mapping("year", vec!["Published".to_string()])
+            .set_header_mapping("journal", vec!["Source".to_string()]);
 
         let parser = CsvParser::with_config(config);
         let citations = parser.parse(input).unwrap();
@@ -445,15 +453,17 @@ Copy Paper,Wilson K,2021,Duplicate,group2";
         let groups = parser.parse_with_duplicates(input).unwrap();
 
         assert_eq!(groups.len(), 3); // Two groups + one standalone
-        
+
         // Find the standalone paper
-        let standalone = groups.iter()
+        let standalone = groups
+            .iter()
             .find(|g| g.unique.title == "Standalone Paper")
             .unwrap();
         assert_eq!(standalone.duplicates.len(), 0);
-        
+
         // Check group with duplicates
-        let with_duplicate = groups.iter()
+        let with_duplicate = groups
+            .iter()
             .find(|g| g.unique.title == "Original Paper")
             .unwrap();
         assert_eq!(with_duplicate.duplicates.len(), 1);

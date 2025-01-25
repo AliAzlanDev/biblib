@@ -19,14 +19,14 @@
 //! assert_eq!(citations[0].title, "Example Title");
 //! ```
 
-use quick_xml::events::Event;
-use quick_xml::reader::Reader;
-use quick_xml::name::QName;
-use std::io::BufRead;
 use nanoid::nanoid;
+use quick_xml::events::Event;
+use quick_xml::name::QName;
+use quick_xml::reader::Reader;
+use std::io::BufRead;
 
+use crate::utils::{format_doi, format_page_numbers, parse_author_name, split_issns};
 use crate::{Author, Citation, CitationError, CitationParser, Result};
-use crate::utils::{parse_author_name, format_doi, format_page_numbers, split_issns};
 
 /// Parser for EndNote XML format citations.
 #[derive(Debug, Default, Clone)]
@@ -50,40 +50,40 @@ impl EndNoteXmlParser {
     fn extract_text<B: BufRead>(
         reader: &mut Reader<B>,
         buf: &mut Vec<u8>,
-        closing_tag: &[u8]
+        closing_tag: &[u8],
     ) -> Result<String> {
         let mut text = String::new();
         let closing_tag_str = String::from_utf8_lossy(closing_tag);
-        
+
         loop {
             match reader.read_event_into(buf) {
                 Ok(Event::Text(e)) => {
-                    text.push_str(&e.unescape().map_err(|e| CitationError::InvalidFormat(
-                        format!("Invalid XML text content: {}", e)
-                    ))?);
+                    text.push_str(&e.unescape().map_err(|e| {
+                        CitationError::InvalidFormat(format!("Invalid XML text content: {}", e))
+                    })?);
                 }
                 Ok(Event::End(e)) if e.name() == QName(closing_tag) => break,
-                Ok(Event::Eof) => return Err(CitationError::InvalidFormat(
-                    format!("Unexpected EOF while looking for closing tag '{}'", closing_tag_str)
-                )),
+                Ok(Event::Eof) => {
+                    return Err(CitationError::InvalidFormat(format!(
+                        "Unexpected EOF while looking for closing tag '{}'",
+                        closing_tag_str
+                    )))
+                }
                 Err(e) => return Err(CitationError::from(e)),
                 _ => continue,
             }
             buf.clear();
         }
-        
+
         Ok(text.trim().to_string())
     }
 
     /// Parse a single record element into a Citation
-    fn parse_record<B: BufRead>(
-        reader: &mut Reader<B>,
-        buf: &mut Vec<u8>
-    ) -> Result<Citation> {
+    fn parse_record<B: BufRead>(reader: &mut Reader<B>, buf: &mut Vec<u8>) -> Result<Citation> {
         let mut citation = Citation::default();
         citation.id = nanoid!();
         citation.citation_type.push("Journal Article".to_string()); // Set default type
-        
+
         loop {
             match reader.read_event_into(buf) {
                 Ok(Event::Start(ref e)) => match e.name().as_ref() {
@@ -95,7 +95,7 @@ impl EndNoteXmlParser {
                                 citation.citation_type.push(
                                     attr.unescape_value()
                                         .map_err(CitationError::from)?
-                                        .into_owned()
+                                        .into_owned(),
                                 );
                             }
                         }
@@ -113,10 +113,12 @@ impl EndNoteXmlParser {
                         });
                     }
                     b"secondary-title" => {
-                        citation.journal = Some(Self::extract_text(reader, buf, b"secondary-title")?);
+                        citation.journal =
+                            Some(Self::extract_text(reader, buf, b"secondary-title")?);
                     }
                     b"alt-title" => {
-                        citation.journal_abbr = Some(Self::extract_text(reader, buf, b"alt-title")?);
+                        citation.journal_abbr =
+                            Some(Self::extract_text(reader, buf, b"alt-title")?);
                     }
                     b"custom2" => {
                         let text = Self::extract_text(reader, buf, b"custom2")?;
@@ -131,7 +133,9 @@ impl EndNoteXmlParser {
                         citation.issue = Some(Self::extract_text(reader, buf, b"number")?);
                     }
                     b"pages" => {
-                        citation.pages = Some(format_page_numbers(&Self::extract_text(reader, buf, b"pages")?));
+                        citation.pages = Some(format_page_numbers(&Self::extract_text(
+                            reader, buf, b"pages",
+                        )?));
                     }
                     b"electronic-resource-num" => {
                         let doi = Self::extract_text(reader, buf, b"electronic-resource-num")?;
@@ -147,16 +151,18 @@ impl EndNoteXmlParser {
                         citation.urls.push(url);
                     }
                     b"year" => {
-                        if let Ok(year) = Self::extract_text(reader, buf, b"year")?
-                            .parse::<i32>() {
+                        if let Ok(year) = Self::extract_text(reader, buf, b"year")?.parse::<i32>() {
                             citation.year = Some(year);
                         }
                     }
                     b"abstract" => {
-                        citation.abstract_text = Some(Self::extract_text(reader, buf, b"abstract")?);
+                        citation.abstract_text =
+                            Some(Self::extract_text(reader, buf, b"abstract")?);
                     }
                     b"keyword" => {
-                        citation.keywords.push(Self::extract_text(reader, buf, b"keyword")?);
+                        citation
+                            .keywords
+                            .push(Self::extract_text(reader, buf, b"keyword")?);
                     }
                     b"language" => {
                         citation.language = Some(Self::extract_text(reader, buf, b"language")?);
@@ -190,10 +196,10 @@ impl CitationParser for EndNoteXmlParser {
 
         let mut reader = Reader::from_str(input);
         reader.config_mut().trim_text(true);
-        
+
         let mut citations = Vec::new();
         let mut buf = Vec::new();
-        
+
         loop {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Start(ref e)) if e.name() == QName(b"record") => {
@@ -207,9 +213,11 @@ impl CitationParser for EndNoteXmlParser {
         }
 
         if citations.is_empty() {
-            return Err(CitationError::InvalidFormat("No valid citations found".into()));
+            return Err(CitationError::InvalidFormat(
+                "No valid citations found".into(),
+            ));
         }
-        
+
         Ok(citations)
     }
 }
@@ -244,7 +252,7 @@ mod tests {
 
         let parser = EndNoteXmlParser::new();
         let result = parser.parse(input).unwrap();
-        
+
         assert_eq!(result.len(), 1);
         let citation = &result[0];
         assert_eq!(citation.citation_type[0], "Journal Article");
@@ -258,7 +266,10 @@ mod tests {
         assert_eq!(citation.issue, Some("2".to_string()));
         assert_eq!(citation.pages, Some("100-110".to_string()));
         assert_eq!(citation.doi, Some("10.1000/test".to_string()));
-        assert_eq!(citation.abstract_text, Some("This is a test abstract.".to_string()));
+        assert_eq!(
+            citation.abstract_text,
+            Some("This is a test abstract.".to_string())
+        );
         assert_eq!(citation.keywords, vec!["Test", "XML"]);
     }
 
@@ -278,7 +289,7 @@ mod tests {
 
         let parser = EndNoteXmlParser::new();
         let result = parser.parse(input).unwrap();
-        
+
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].title, "First Article");
         assert_eq!(result[1].title, "Second Article");
@@ -304,7 +315,15 @@ mod tests {
 
         let parser = EndNoteXmlParser::new();
         let result = parser.parse(input).unwrap();
-        
-        assert_eq!(result[0].issn, vec!["1234-5678 (Print)", "5678-1234 (Electronic)", "0047-1852 (Print)", "0047-1852"]);
+
+        assert_eq!(
+            result[0].issn,
+            vec![
+                "1234-5678 (Print)",
+                "5678-1234 (Electronic)",
+                "0047-1852 (Print)",
+                "0047-1852"
+            ]
+        );
     }
 }

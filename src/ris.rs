@@ -18,12 +18,12 @@
 //! assert_eq!(citations[0].title, "Example Title");
 //! ```
 
+use crate::utils::{format_doi, format_page_numbers, parse_author_name};
 use crate::{Author, Citation, CitationError, CitationParser, Result};
-use crate::utils::{format_page_numbers, parse_author_name, format_doi};
 use nanoid::nanoid;
 
 /// Parser for RIS format citations.
-/// 
+///
 /// RIS is a standardized format for bibliographic citations that uses two-letter
 /// tags at the start of each line to denote different citation fields.
 #[derive(Debug, Default, Clone)]
@@ -49,7 +49,7 @@ impl RisParser {
         Author {
             family_name: family,
             given_name: given,
-            affiliation: None
+            affiliation: None,
         }
     }
 
@@ -59,10 +59,10 @@ impl RisParser {
     ///
     /// * `line` - The line to check
     fn is_metadata_line(line: &str) -> bool {
-        line.starts_with("Record #") ||
-        line.starts_with("Provider:") ||
-        line.starts_with("Content:") ||
-        line.trim().is_empty()
+        line.starts_with("Record #")
+            || line.starts_with("Provider:")
+            || line.starts_with("Content:")
+            || line.trim().is_empty()
     }
 
     /// Validates that a line meets the minimum RIS format requirements.
@@ -77,20 +77,24 @@ impl RisParser {
     /// * `Err(CitationError)` if the line is invalid
     fn validate_line(line: &str) -> Result<(&str, &str)> {
         if Self::is_metadata_line(line) {
-            return Err(CitationError::InvalidFormat("Metadata line encountered".into()));
-        }
-        
-        if line.len() < 6 {
             return Err(CitationError::InvalidFormat(
-                format!("Line too short for RIS format (min 6 chars): '{}'", line)
+                "Metadata line encountered".into(),
             ));
+        }
+
+        if line.len() < 6 {
+            return Err(CitationError::InvalidFormat(format!(
+                "Line too short for RIS format (min 6 chars): '{}'",
+                line
+            )));
         }
 
         let tag = &line[..2];
         if !tag.chars().all(|c| c.is_ascii_uppercase()) {
-            return Err(CitationError::InvalidFormat(
-                format!("Invalid RIS tag format: '{}'", tag)
-            ));
+            return Err(CitationError::InvalidFormat(format!(
+                "Invalid RIS tag format: '{}'",
+                tag
+            )));
         }
 
         let content = line[6..].trim();
@@ -134,18 +138,19 @@ impl CitationParser for RisParser {
                     if current_citation.title.is_empty() {
                         current_citation.title = content.to_string()
                     }
-                },
-                "AU" | "A1" | "A2" | "A3" | "A4" => current_citation.authors.push(Self::parse_author(content)),
+                }
+                "AU" | "A1" | "A2" | "A3" | "A4" => {
+                    current_citation.authors.push(Self::parse_author(content))
+                }
                 "JF" | "T2" => current_citation.journal = Some(content.to_string()),
                 "JA" | "J2" => current_citation.journal_abbr = Some(content.to_string()),
-                "JO"  => {
+                "JO" => {
                     if current_citation.journal_abbr.is_none() {
                         current_citation.journal_abbr = Some(content.to_string())
                     }
-                },
+                }
                 "PY" | "Y1" => {
-                    if let Ok(year) = content.split('/').next()
-                        .unwrap_or("0").parse::<i32>() {
+                    if let Ok(year) = content.split('/').next().unwrap_or("0").parse::<i32>() {
                         current_citation.year = Some(year);
                     }
                 }
@@ -167,10 +172,10 @@ impl CitationParser for RisParser {
                     if current_citation.abstract_text.is_none() {
                         current_citation.abstract_text = Some(content.to_string())
                     }
-                },
+                }
                 "KW" => current_citation.keywords.push(content.to_string()),
                 "SN" => current_citation.issn.push(content.to_string()),
-                "L1" | "L2" | "L3" | "L4"| "UR" | "LK" => {
+                "L1" | "L2" | "L3" | "L4" | "UR" | "LK" => {
                     if current_citation.doi.is_none() && content.contains("doi.org") {
                         current_citation.doi = format_doi(content);
                     }
@@ -191,7 +196,8 @@ impl CitationParser for RisParser {
                     }
                 }
                 _ => {
-                    current_citation.extra_fields
+                    current_citation
+                        .extra_fields
                         .entry(tag.to_string())
                         .or_default()
                         .push(content.to_string());
@@ -204,7 +210,9 @@ impl CitationParser for RisParser {
         }
 
         if citations.is_empty() {
-            return Err(CitationError::InvalidFormat("No valid citations found".into()));
+            return Err(CitationError::InvalidFormat(
+                "No valid citations found".into(),
+            ));
         }
 
         Ok(citations)
@@ -265,7 +273,7 @@ TY  - BOOK
 TI  - Another Test
 AU  - Doe, Jane
 ER  -"#;
-        
+
         let parser = RisParser::new();
         let result = parser.parse(input).unwrap();
         assert_eq!(result.len(), 2);

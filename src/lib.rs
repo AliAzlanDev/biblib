@@ -1,6 +1,6 @@
 //! A comprehensive library for parsing, managing, and deduplicating academic citations.
 //!
-//! `biblib` provides robust functionality for working with academic citations in various formats. 
+//! `biblib` provides robust functionality for working with academic citations in various formats.
 //! It focuses on accurate parsing, format conversion, and intelligent deduplication of citations.
 //!
 //! # Key Features
@@ -11,7 +11,7 @@
 //!   - EndNote XML
 //!   - CSV with configurable mappings
 //!
-//! - **Intelligent Deduplication**: 
+//! - **Intelligent Deduplication**:
 //!   - DOI-based matching
 //!   - Smart title comparison
 //!   - Journal name/abbreviation matching
@@ -99,25 +99,25 @@
 //! All parser implementations are thread-safe and can be shared between threads.
 //! The deduplicator supports parallel processing through the `run_in_parallel` option.
 
+use quick_xml::events::attributes::AttrError;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
-use quick_xml::events::attributes::AttrError;
-use serde::{Serialize, Deserialize};
 
 extern crate csv as csv_crate;
 
-pub mod pubmed;
-pub mod ris;
-pub mod endnote_xml;
 pub mod csv;
 pub mod dedupe;
+pub mod endnote_xml;
+pub mod pubmed;
+pub mod ris;
 mod utils;
 
 // Reexports
+pub use csv::CsvParser;
+pub use endnote_xml::EndNoteXmlParser;
 pub use pubmed::PubMedParser;
 pub use ris::RisParser;
-pub use endnote_xml::EndNoteXmlParser;
-pub use csv::CsvParser;
 
 /// A specialized Result type for citation operations.
 pub type Result<T> = std::result::Result<T, CitationError>;
@@ -127,25 +127,19 @@ pub type Result<T> = std::result::Result<T, CitationError>;
 pub enum CitationError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
-    
+
     #[error("Parse error: {0}")]
     InvalidFormat(String),
-    
+
     #[error("Missing required field: {0}")]
     MissingField(String),
-    
+
     #[error("Invalid field value: {field} - {message}")]
-    InvalidFieldValue {
-        field: String,
-        message: String,
-    },
-    
+    InvalidFieldValue { field: String, message: String },
+
     #[error("Malformed input: {message} at line {line}")]
-    MalformedInput {
-        message: String,
-        line: usize,
-    },
-    
+    MalformedInput { message: String, line: usize },
+
     #[error("Error: {0}")]
     Other(String),
 }

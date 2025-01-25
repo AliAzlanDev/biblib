@@ -19,8 +19,8 @@
 //! assert_eq!(citations[0].title, "Example Title");
 //! ```
 
-use crate::{Author, Citation, CitationParser, Result, CitationError};
-use crate::utils::{format_page_numbers, parse_author_name, format_doi};
+use crate::utils::{format_doi, format_page_numbers, parse_author_name};
+use crate::{Author, Citation, CitationError, CitationParser, Result};
 use nanoid::nanoid;
 
 /// Parser for PubMed format citations.
@@ -56,7 +56,6 @@ impl PubMedParser {
         Self::default()
     }
 
-    
     /// Parses an author string in the format "LastName, FirstName".
     ///
     /// ## Arguments
@@ -67,7 +66,7 @@ impl PubMedParser {
         Author {
             family_name: family,
             given_name: given,
-            affiliation: None
+            affiliation: None,
         }
     }
 
@@ -78,15 +77,13 @@ impl PubMedParser {
     /// * `citation` - The current citation being built
     /// * `field` - The current field being processed
     /// * `content` - The content to append
-    fn handle_continuation(
-        citation: &mut Citation,
-        field: &str,
-        content: &str,
-    ) {
+    fn handle_continuation(citation: &mut Citation, field: &str, content: &str) {
         match field {
             "FAU" => citation.authors.push(Self::parse_author(content)),
             "AB" => {
-                citation.abstract_text.get_or_insert_with(String::new)
+                citation
+                    .abstract_text
+                    .get_or_insert_with(String::new)
                     .push_str(content);
             }
             "AD" => {
@@ -112,7 +109,7 @@ impl PubMedParser {
 
     fn validate_line(line: &str, line_num: usize) -> Result<PubMedLine> {
         let line = line.trim_end();
-        
+
         // Check for continuation line (starts with 6 spaces)
         if let Some(content) = line.strip_prefix("      ") {
             return Ok(PubMedLine::Continuation(content.trim_start()));
@@ -194,10 +191,16 @@ impl CitationParser for PubMedParser {
                         "TI" => current_citation.title = content.to_string(),
                         "JT" => current_citation.journal = Some(content.to_string()),
                         "TA" => current_citation.journal_abbr = Some(content.to_string()),
-                        "DP" => if let Ok(year) = content.split_whitespace().next()
-                            .unwrap_or("0").parse::<i32>() {
-                            current_citation.year = Some(year);
-                        },
+                        "DP" => {
+                            if let Ok(year) = content
+                                .split_whitespace()
+                                .next()
+                                .unwrap_or("0")
+                                .parse::<i32>()
+                            {
+                                current_citation.year = Some(year);
+                            }
+                        }
                         "VI" => current_citation.volume = Some(content.to_string()),
                         "IP" => current_citation.issue = Some(content.to_string()),
                         "PG" => current_citation.pages = Some(format_page_numbers(content)),
@@ -212,13 +215,16 @@ impl CitationParser for PubMedParser {
                         "AB" => current_citation.abstract_text = Some(content.to_string()),
                         "OT" => current_citation.keywords.push(content.to_string()),
                         "MH" => current_citation.mesh_terms.push(content.to_string()),
-                        "AD" => if let Some(last_author) = current_citation.authors.last_mut() {
-                            last_author.affiliation = Some(content.to_string());
-                        },
+                        "AD" => {
+                            if let Some(last_author) = current_citation.authors.last_mut() {
+                                last_author.affiliation = Some(content.to_string());
+                            }
+                        }
                         "LA" => current_citation.language = Some(content.to_string()),
                         "IS" => current_citation.issn.push(content.to_string()),
                         _ => {
-                            current_citation.extra_fields
+                            current_citation
+                                .extra_fields
                                 .entry(tag.to_string())
                                 .or_default()
                                 .push(content.to_string());
@@ -236,7 +242,9 @@ impl CitationParser for PubMedParser {
         }
 
         if citations.is_empty() {
-            return Err(CitationError::InvalidFormat("No valid citations found".into()));
+            return Err(CitationError::InvalidFormat(
+                "No valid citations found".into(),
+            ));
         }
 
         Ok(citations)
@@ -286,8 +294,10 @@ JT  - Test Journal
 "#;
         let parser = PubMedParser::new();
         let result = parser.parse(input).unwrap();
-        assert_eq!(result[0].authors[0].affiliation.as_deref(), 
-            Some("Department of Science, Test University New York, NY 10021, USA"));
+        assert_eq!(
+            result[0].authors[0].affiliation.as_deref(),
+            Some("Department of Science, Test University New York, NY 10021, USA")
+        );
     }
 
     #[test]
@@ -300,7 +310,7 @@ TA  - J Test
 "#;
         let parser = PubMedParser::new();
         let result = parser.parse(input).unwrap();
-        
+
         assert_eq!(result[0].journal.as_deref(), Some("Journal of Testing"));
         assert_eq!(result[0].journal_abbr.as_deref(), Some("J Test"));
     }
@@ -372,7 +382,10 @@ AU  - Zhang H
     fn test_validate_line() {
         assert!(matches!(
             PubMedParser::validate_line("PMID- 12345678", 1).unwrap(),
-            PubMedLine::Field { tag: "PMID", content: "12345678" }
+            PubMedLine::Field {
+                tag: "PMID",
+                content: "12345678"
+            }
         ));
 
         assert!(matches!(

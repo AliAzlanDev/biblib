@@ -1,7 +1,7 @@
 //! Citations deduplicator implementation.
-//! 
-//! A module for detecting duplicate academic citations. It provides robust 
-//! deduplication of citations based on multiple criteria including DOIs, titles, journal names, 
+//!
+//! A module for detecting duplicate academic citations. It provides robust
+//! deduplication of citations based on multiple criteria including DOIs, titles, journal names,
 //! and other metadata.
 //!
 //! ## Features
@@ -95,20 +95,17 @@
 //!    - Matching volume or page numbers
 //!    - Matching journal names or ISSNs
 
-
-use std::collections::HashMap;
+use crate::{Citation, DuplicateGroup};
+use once_cell::sync::Lazy;
 use regex::Regex;
+use std::collections::HashMap;
 use strsim::jaro;
 use strsim::jaro_winkler;
-use once_cell::sync::Lazy;
-use crate::{DuplicateGroup, Citation};
 
 const DOI_TITLE_SIMILARITY_THRESHOLD: f64 = 0.85;
 const NO_DOI_TITLE_SIMILARITY_THRESHOLD: f64 = 0.93;
 
-static UNICODE_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"<U\+([0-9A-Fa-f]+)>").unwrap()
-});
+static UNICODE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"<U\+([0-9A-Fa-f]+)>").unwrap());
 
 const HTML_REPLACEMENTS: [(&str, &str); 13] = [
     ("&lt;", "<"),
@@ -222,10 +219,10 @@ struct PreprocessedCitation<'a> {
 pub enum DedupeError {
     #[error("Invalid citation data: {0}")]
     InvalidCitation(String),
-    
+
     #[error("Processing error: {0}")]
     ProcessingError(String),
-    
+
     #[error("Configuration error: {0}")]
     ConfigError(String),
 }
@@ -239,20 +236,23 @@ impl Deduplicator {
     ///
     /// ```
     /// use biblib::dedupe::Deduplicator;
-    /// 
+    ///
     /// let deduplicator = Deduplicator::new();
     /// ```
     #[must_use]
     pub fn new() -> Self {
         Self {
-            config: DeduplicatorConfig { group_by_year: true, run_in_parallel: false },
+            config: DeduplicatorConfig {
+                group_by_year: true,
+                run_in_parallel: false,
+            },
         }
     }
 
-    /// Creates a new Deduplicator with custom configuration. 
+    /// Creates a new Deduplicator with custom configuration.
     ///
     /// # Notes
-    /// 
+    ///
     /// - Disabling year-based grouping can result in very long processing times.
     /// - Parallel processing (`run_in_parallel`) is only effective when `group_by_year` is `true`.
     /// - If `run_in_parallel` is `true` but `group_by_year` is `false`, `run_in_parallel` will be ignored.
@@ -310,7 +310,10 @@ impl Deduplicator {
     /// let deduplicator = Deduplicator::new();
     /// let duplicate_groups = deduplicator.find_duplicates(&citations);
     /// ```
-    pub fn find_duplicates(self, citations: &[Citation]) -> Result<Vec<DuplicateGroup>, DedupeError> {
+    pub fn find_duplicates(
+        self,
+        citations: &[Citation],
+    ) -> Result<Vec<DuplicateGroup>, DedupeError> {
         if citations.is_empty() {
             return Ok(Vec::new());
         }
@@ -322,16 +325,14 @@ impl Deduplicator {
 
                 let duplicate_groups: Result<Vec<_>, _> = year_groups
                     .par_iter()
-                    .map(|(_, citations_in_year)| {
-                        self.process_citation_group(citations_in_year)
-                    })
+                    .map(|(_, citations_in_year)| self.process_citation_group(citations_in_year))
                     .collect();
 
                 // Flatten results
                 Ok(duplicate_groups?.into_iter().flatten().collect())
             } else {
                 let mut duplicate_groups = Vec::new();
-    
+
                 for citations_in_year in year_groups.values() {
                     duplicate_groups.extend(self.process_citation_group(citations_in_year)?);
                 }
@@ -343,7 +344,10 @@ impl Deduplicator {
         }
     }
 
-    fn process_citation_group(&self, citations: &[&Citation]) -> Result<Vec<DuplicateGroup>, DedupeError> {
+    fn process_citation_group(
+        &self,
+        citations: &[&Citation],
+    ) -> Result<Vec<DuplicateGroup>, DedupeError> {
         let mut duplicate_groups = Vec::new();
         // Preprocess all citations in this group
         let preprocessed: Vec<PreprocessedCitation> = citations
@@ -351,14 +355,21 @@ impl Deduplicator {
             .map(|c| {
                 Ok(PreprocessedCitation {
                     original: c,
-                    normalized_title: Self::normalize_string(&Self::convert_unicode_string(&c.title))
-                        .ok_or_else(|| DedupeError::ProcessingError("Failed to normalize title".to_string()))?,
+                    normalized_title: Self::normalize_string(&Self::convert_unicode_string(
+                        &c.title,
+                    ))
+                    .ok_or_else(|| {
+                        DedupeError::ProcessingError("Failed to normalize title".to_string())
+                    })?,
                     normalized_journal: Self::format_journal_name(c.journal.as_deref()),
                     normalized_journal_abbr: Self::format_journal_name(c.journal_abbr.as_deref()),
-                    normalized_volume: c.volume
+                    normalized_volume: c
+                        .volume
                         .as_deref()
                         .map_or(String::new(), Deduplicator::normalize_volume),
-                    normalized_issn: c.issn.iter()
+                    normalized_issn: c
+                        .issn
+                        .iter()
                         .filter_map(|issn| Deduplicator::format_issn(issn))
                         .collect(),
                 })
@@ -382,31 +393,40 @@ impl Deduplicator {
 
                 let other = &preprocessed[j];
 
-                let journal_match = Self::journals_match(&current.normalized_journal, &current.normalized_journal_abbr, 
-                    &other.normalized_journal, &other.normalized_journal_abbr);
-                let issns_match = Self::match_issns(&current.normalized_issn, &other.normalized_issn);
-                let volumes_match = !current.normalized_volume.is_empty() && !other.normalized_volume.is_empty() && 
-                    current.normalized_volume == other.normalized_volume;
-                let pages_match = current.original.pages.is_some() && other.original.pages.is_some() &&
-                    current.original.pages == other.original.pages;
-               let years_match = current.original.year == other.original.year;
+                let journal_match = Self::journals_match(
+                    &current.normalized_journal,
+                    &current.normalized_journal_abbr,
+                    &other.normalized_journal,
+                    &other.normalized_journal_abbr,
+                );
+                let issns_match =
+                    Self::match_issns(&current.normalized_issn, &other.normalized_issn);
+                let volumes_match = !current.normalized_volume.is_empty()
+                    && !other.normalized_volume.is_empty()
+                    && current.normalized_volume == other.normalized_volume;
+                let pages_match = current.original.pages.is_some()
+                    && other.original.pages.is_some()
+                    && current.original.pages == other.original.pages;
+                let years_match = current.original.year == other.original.year;
 
                 let is_duplicate = match (&current.original.doi, &other.original.doi) {
                     // With DOIs
                     (Some(doi1), Some(doi2)) if !doi1.is_empty() && !doi2.is_empty() => {
-                        let title_similarity = jaro(&current.normalized_title, &other.normalized_title);
-                       
+                        let title_similarity =
+                            jaro(&current.normalized_title, &other.normalized_title);
+
                         // With Journal/ISSN match
                         (doi1 == doi2 && title_similarity >= DOI_TITLE_SIMILARITY_THRESHOLD && (journal_match || issns_match))
                         // Without Journal/ISSN match: only when we have same DOI (and we use volume/pages instead)
                         || (doi1 == doi2 && title_similarity >= 0.99 && (volumes_match || pages_match))
                         // Without DOI match: only when we have a very high title similarity and all other fields match
                         || (title_similarity >= 0.99 && years_match && (volumes_match || pages_match) && (journal_match || issns_match))
-                    },
+                    }
                     // Without DOIs
                     _ => {
-                        let title_similarity = jaro_winkler(&current.normalized_title, &other.normalized_title) ;
-                     
+                        let title_similarity =
+                            jaro_winkler(&current.normalized_title, &other.normalized_title);
+
                         // With Journal/ISSN match
                         (title_similarity >= NO_DOI_TITLE_SIMILARITY_THRESHOLD && (volumes_match || pages_match) && (journal_match || issns_match))
                         // Without Journal/ISSN match: only when we have a very high title similarity and all other fields match
@@ -440,7 +460,7 @@ impl Deduplicator {
 
     fn group_by_year(citations: &[Citation]) -> HashMap<i32, Vec<&Citation>> {
         let mut year_map: HashMap<i32, Vec<&Citation>> = HashMap::new();
-        
+
         for citation in citations {
             let year = citation.year.unwrap_or(0);
             year_map.entry(year).or_default().push(citation);
@@ -450,15 +470,16 @@ impl Deduplicator {
     }
 
     fn convert_unicode_string(input: &str) -> String {
-        UNICODE_REGEX.replace_all(input, |caps: &regex::Captures| {
-            u32::from_str_radix(&caps[1], 16)
-                .ok()
-                .and_then(char::from_u32)
-                .map(|c| c.to_string())
-                .unwrap_or_else(|| caps[0].to_string())
-        }).to_string()
+        UNICODE_REGEX
+            .replace_all(input, |caps: &regex::Captures| {
+                u32::from_str_radix(&caps[1], 16)
+                    .ok()
+                    .and_then(char::from_u32)
+                    .map(|c| c.to_string())
+                    .unwrap_or_else(|| caps[0].to_string())
+            })
+            .to_string()
     }
-    
 
     fn normalize_string(string: &str) -> Option<String> {
         if string.is_empty() {
@@ -467,30 +488,30 @@ impl Deduplicator {
 
         let mut result = String::with_capacity(string.len());
         let mut s = string.trim().to_lowercase();
-        
+
         for replacement in HTML_REPLACEMENTS.iter() {
             s = s.replace(replacement.0, replacement.1);
         }
-        
+
         s.chars()
             .filter(|c| c.is_alphanumeric())
             .for_each(|c| result.push(c));
-        
+
         Some(result)
     }
-    
+
     fn normalize_volume(volume: &str) -> String {
         if volume.is_empty() {
             return String::new();
         }
-    
+
         // Find first sequence of numbers anywhere in the string
         let numbers: String = volume
             .chars()
             .skip_while(|c| !c.is_numeric())
             .take_while(|c| c.is_numeric())
             .collect();
-    
+
         if numbers.is_empty() {
             String::new()
         } else {
@@ -505,24 +526,35 @@ impl Deduplicator {
         journal2: &Option<String>,
         journal_abbr2: &Option<String>,
     ) -> bool {
-        journal1.as_ref().zip(journal2.as_ref()).map_or(false, |(j1, j2)| j1 == j2) ||
-        journal_abbr1.as_ref().zip(journal_abbr2.as_ref()).map_or(false, |(a1, a2)| a1 == a2) ||
-        journal1.as_ref().zip(journal_abbr2.as_ref()).map_or(false, |(j1, a2)| j1 == a2) ||
-        journal_abbr1.as_ref().zip(journal2.as_ref()).map_or(false, |(a1, j2)| a1 == j2)
+        journal1
+            .as_ref()
+            .zip(journal2.as_ref())
+            .map_or(false, |(j1, j2)| j1 == j2)
+            || journal_abbr1
+                .as_ref()
+                .zip(journal_abbr2.as_ref())
+                .map_or(false, |(a1, a2)| a1 == a2)
+            || journal1
+                .as_ref()
+                .zip(journal_abbr2.as_ref())
+                .map_or(false, |(j1, a2)| j1 == a2)
+            || journal_abbr1
+                .as_ref()
+                .zip(journal2.as_ref())
+                .map_or(false, |(a1, j2)| a1 == j2)
     }
 
     fn format_journal_name(full_name: Option<&str>) -> Option<String> {
-        full_name.map(|name| 
-            name
-            .split(". Conference")
-            .next()
-            .unwrap_or(name)
-            .trim()
-            .to_lowercase()
-            .chars()
-            .filter(|c| c.is_alphanumeric())
-            .collect::<String>()
-        )
+        full_name.map(|name| {
+            name.split(". Conference")
+                .next()
+                .unwrap_or(name)
+                .trim()
+                .to_lowercase()
+                .chars()
+                .filter(|c| c.is_alphanumeric())
+                .collect::<String>()
+        })
     }
 
     fn format_issn(issn_str: &str) -> Option<String> {
@@ -537,23 +569,25 @@ impl Deduplicator {
             .to_string();
 
         // Extract all digits and X
-        let digits: String = clean_issn.chars().filter(|c| c.is_ascii_digit() || *c == 'X').collect();
-        
+        let digits: String = clean_issn
+            .chars()
+            .filter(|c| c.is_ascii_digit() || *c == 'X')
+            .collect();
+
         // Validate format
         match (clean_issn.len(), digits.len()) {
             // Valid formats: "1234-5678" (9 chars with hyphen) or "12345678" (8 chars without hyphen)
             (9, 8) if clean_issn.chars().nth(4) == Some('-') => Some(clean_issn),
             (8, 8) => Some(format!("{}-{}", &digits[..4], &digits[4..])),
-            _ => None
+            _ => None,
         }
     }
 
     fn match_issns(list1: &Vec<String>, list2: &Vec<String>) -> bool {
-        list1.iter().any(|isbn1| 
-            list2.iter().any(|isbn2| isbn1 == isbn2)
-        )
+        list1
+            .iter()
+            .any(|isbn1| list2.iter().any(|isbn2| isbn1 == isbn2))
     }
-    
 }
 
 #[cfg(test)]
@@ -625,9 +659,17 @@ mod tests {
 
         let deduplicator = Deduplicator::new();
         let duplicate_groups = deduplicator.find_duplicates(&citations).unwrap();
-        
+
         assert_eq!(duplicate_groups.len(), 2);
-        assert_eq!(duplicate_groups.iter().find(|g| g.unique.id == "1").unwrap().duplicates.len(), 1);
+        assert_eq!(
+            duplicate_groups
+                .iter()
+                .find(|g| g.unique.id == "1")
+                .unwrap()
+                .duplicates
+                .len(),
+            1
+        );
     }
 
     #[test]
@@ -663,7 +705,7 @@ mod tests {
 
         let deduplicator = Deduplicator::new();
         let duplicate_groups = deduplicator.find_duplicates(&citations).unwrap();
-        
+
         assert_eq!(duplicate_groups.len(), 2);
     }
 
@@ -735,7 +777,10 @@ mod tests {
         assert_eq!(Deduplicator::normalize_volume("161A"), "161");
         assert_eq!(Deduplicator::normalize_volume("74 Suppl 1"), "74");
         assert_eq!(Deduplicator::normalize_volume("20 (2)"), "20");
-        assert_eq!(Deduplicator::normalize_volume("9 (FEB) (no pagination)"), "9");
+        assert_eq!(
+            Deduplicator::normalize_volume("9 (FEB) (no pagination)"),
+            "9"
+        );
     }
 
     #[test]
@@ -745,17 +790,16 @@ mod tests {
             Some("heart".to_string())
         );
         assert_eq!(
-            Deduplicator::format_journal_name(Some("The FASEB Journal. Conference: Experimental Biology")),
+            Deduplicator::format_journal_name(Some(
+                "The FASEB Journal. Conference: Experimental Biology"
+            )),
             Some("thefasebjournal".to_string())
         );
         assert_eq!(
             Deduplicator::format_journal_name(Some("Arteriosclerosis Thrombosis and Vascular Biology. Conference: American Heart Association's Arteriosclerosis Thrombosis and Vascular Biology")),
             Some("arteriosclerosisthrombosisandvascularbiology".to_string())
         );
-        assert_eq!(
-            Deduplicator::format_journal_name(None),
-            None
-        );
+        assert_eq!(Deduplicator::format_journal_name(None), None);
         assert_eq!(
             Deduplicator::format_journal_name(Some("")),
             Some("".to_string())
@@ -769,42 +813,62 @@ mod tests {
     #[test]
     fn test_match_issns_scenarios() {
         // Scenario 1: Matching lists
-        let issns1 = vec![
-            "1234-5678".to_string(), 
-            "8765-4321".to_string()
-        ];
-        let issns2 = vec![
-            "0000-0000".to_string(), 
-            "1234-5678".to_string()
-        ];
-        assert!(Deduplicator::match_issns(&issns1, &issns2), "Should find a matching ISSN");
+        let issns1 = vec!["1234-5678".to_string(), "8765-4321".to_string()];
+        let issns2 = vec!["0000-0000".to_string(), "1234-5678".to_string()];
+        assert!(
+            Deduplicator::match_issns(&issns1, &issns2),
+            "Should find a matching ISSN"
+        );
 
-
-        let non_match_issns2 = vec![
-            "5555-6666".to_string(), 
-            "7777-8888".to_string()
-        ];
-        assert!(!Deduplicator::match_issns(&issns1, &non_match_issns2), "Should not find a matching ISSN");
+        let non_match_issns2 = vec!["5555-6666".to_string(), "7777-8888".to_string()];
+        assert!(
+            !Deduplicator::match_issns(&issns1, &non_match_issns2),
+            "Should not find a matching ISSN"
+        );
 
         // Scenario 3: Empty lists
         let empty_issns1: Vec<String> = vec![];
         let empty_issns2: Vec<String> = vec![];
-        assert!(!Deduplicator::match_issns(&empty_issns1, &empty_issns2), "Should return false for empty lists");
+        assert!(
+            !Deduplicator::match_issns(&empty_issns1, &empty_issns2),
+            "Should return false for empty lists"
+        );
 
         // Scenario 4: One empty list
         let partial_issns1 = vec!["1234-5678".to_string()];
         let partial_issns2: Vec<String> = vec![];
-        assert!(!Deduplicator::match_issns(&partial_issns1, &partial_issns2), "Should return false when one list is empty");
+        assert!(
+            !Deduplicator::match_issns(&partial_issns1, &partial_issns2),
+            "Should return false when one list is empty"
+        );
     }
 
     #[test]
     fn test_format_issn() {
-        assert_eq!(Deduplicator::format_issn("1234-5678"), Some("1234-5678".to_string()));
-        assert_eq!(Deduplicator::format_issn("12345678"), Some("1234-5678".to_string()));
-        assert_eq!(Deduplicator::format_issn("1234-567X"), Some("1234-567X".to_string()));
-        assert_eq!(Deduplicator::format_issn("1234-567X (Electronic)"), Some("1234-567X".to_string()));
-        assert_eq!(Deduplicator::format_issn("1234-5678 (Print)"), Some("1234-5678".to_string()));
-        assert_eq!(Deduplicator::format_issn("1234-5678 (Linking)"), Some("1234-5678".to_string()));
+        assert_eq!(
+            Deduplicator::format_issn("1234-5678"),
+            Some("1234-5678".to_string())
+        );
+        assert_eq!(
+            Deduplicator::format_issn("12345678"),
+            Some("1234-5678".to_string())
+        );
+        assert_eq!(
+            Deduplicator::format_issn("1234-567X"),
+            Some("1234-567X".to_string())
+        );
+        assert_eq!(
+            Deduplicator::format_issn("1234-567X (Electronic)"),
+            Some("1234-567X".to_string())
+        );
+        assert_eq!(
+            Deduplicator::format_issn("1234-5678 (Print)"),
+            Some("1234-5678".to_string())
+        );
+        assert_eq!(
+            Deduplicator::format_issn("1234-5678 (Linking)"),
+            Some("1234-5678".to_string())
+        );
         assert_eq!(Deduplicator::format_issn("invalid"), None);
         assert_eq!(Deduplicator::format_issn("1234-56789"), None);
         assert_eq!(Deduplicator::format_issn("123-45678"), None);
@@ -831,17 +895,20 @@ mod tests {
             },
         ];
 
-        let config = DeduplicatorConfig { group_by_year: false, ..Default::default() };
+        let config = DeduplicatorConfig {
+            group_by_year: false,
+            ..Default::default()
+        };
         let deduplicator = Deduplicator::with_config(config);
         let duplicate_groups = deduplicator.find_duplicates(&citations).unwrap();
-        
+
         assert_eq!(duplicate_groups.len(), 1);
         assert_eq!(duplicate_groups[0].duplicates.len(), 1);
 
         // Test with default year grouping (should not find duplicates across years)
         let deduplicator = Deduplicator::new();
         let duplicate_groups = deduplicator.find_duplicates(&citations).unwrap();
-        
+
         assert_eq!(duplicate_groups.len(), 2);
         assert!(duplicate_groups.iter().all(|g| g.duplicates.is_empty()));
     }

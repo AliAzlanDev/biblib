@@ -1,18 +1,16 @@
-use regex::Regex;
 use once_cell::sync::Lazy;
+use regex::Regex;
 
-static DOI_URL_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^https?://(?:dx\.)?doi\.org/(.+)$").unwrap()
-});
+static DOI_URL_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^https?://(?:dx\.)?doi\.org/(.+)$").unwrap());
 
-static ISSN_SPLIT_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"\d{4}-\d{3}[\dX](?:\s*\([^)]+\))?").unwrap()
-});
+static ISSN_SPLIT_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\d{4}-\d{3}[\dX](?:\s*\([^)]+\))?").unwrap());
 
 /// Formats page numbers consistently, handling partial end page numbers
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `page_str` - The page string to format
 pub fn format_page_numbers(page_range: &str) -> String {
     // Handle non-hyphenated or empty input
@@ -62,11 +60,9 @@ pub fn format_page_numbers(page_range: &str) -> String {
     }
 
     // Reconstruct the page range
-    format!("{}{}-{}{}", 
-        from_prefix, 
-        from_num, 
-        from_prefix, 
-        completed_to
+    format!(
+        "{}{}-{}{}",
+        from_prefix, from_num, from_prefix, completed_to
     )
 }
 
@@ -78,7 +74,7 @@ fn split_prefix_and_number(input: &str) -> (String, Option<String>) {
             let prefix = input[..index].to_string();
             let number = input[index..].to_string();
             (prefix, Some(number))
-        },
+        }
         None => {
             // If no numeric part, return the whole input as prefix
             (input.to_string(), None)
@@ -87,9 +83,9 @@ fn split_prefix_and_number(input: &str) -> (String, Option<String>) {
 }
 
 /// Formats a DOI string by removing URL prefixes and [doi] suffixes
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `doi_str` - The DOI string to format
 pub fn format_doi(doi_str: &str) -> Option<String> {
     if doi_str.is_empty() {
@@ -101,42 +97,42 @@ pub fn format_doi(doi_str: &str) -> Option<String> {
         .trim()
         .replace(|c: char| c.is_whitespace(), "") // Remove all whitespace
         .to_lowercase();
-    
+
     // Find the first occurrence of "10." which typically starts a DOI
     if let Some(pos) = doi.find("10.") {
         let doi = &doi[pos..];
         if let Some(captures) = DOI_URL_REGEX.captures(doi) {
             Some(captures[1].to_string())
         } else {
-           Some(doi.to_string())
+            Some(doi.to_string())
         }
     } else {
-       None
+        None
     }
 }
 
 /// Splits a string containing multiple ISSNs into a vector of individual ISSNs
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `issns` - String containing one or more ISSNs, possibly separated by newlines
 pub fn split_issns(issns: &str) -> Vec<String> {
     let normalized = issns
         .replace("\\r\\n", "\n")
         .replace("\\r", "\n")
         .replace("\\n", "\n");
-    
+
     let mut result = Vec::new();
     for line in normalized.split('\n') {
         if line.trim().is_empty() {
             continue;
         }
-        
+
         let matches: Vec<_> = ISSN_SPLIT_REGEX
             .find_iter(line)
             .map(|m| m.as_str().trim())
             .collect();
-            
+
         if !matches.is_empty() {
             result.extend(matches.into_iter().map(String::from));
         }
@@ -182,8 +178,8 @@ mod tests {
         // assert_eq!(format_page_numbers("879-93.s1"), "879-893");
         assert_eq!(format_page_numbers("e071674"), "e071674");
         assert_eq!(format_page_numbers("R575-82"), "R575-R582");
-        assert_eq!(format_page_numbers("12-345"), "12-345");  // to is longer than from
-        assert_eq!(format_page_numbers("5-10"), "5-10");      // single digit to double digit
+        assert_eq!(format_page_numbers("12-345"), "12-345"); // to is longer than from
+        assert_eq!(format_page_numbers("5-10"), "5-10"); // single digit to double digit
         assert_eq!(format_page_numbers("A94-A95"), "A94-A95");
         assert_eq!(format_page_numbers("01-Apr"), "01-Apr");
         assert_eq!(format_page_numbers("iii613-iii614"), "iii613-iii614");
@@ -195,9 +191,18 @@ mod tests {
         let test_cases = vec![
             ("10.1000/test", Some("10.1000/test".to_string())),
             ("10.1000/test [doi]", Some("10.1000/test".to_string())),
-            ("https://doi.org/10.1000/test", Some("10.1000/test".to_string())),
-            ("http://dx.doi.org/10.1000/test", Some("10.1000/test".to_string())),
-            (" https://doi.org/10.1000/test ", Some("10.1000/test".to_string())),
+            (
+                "https://doi.org/10.1000/test",
+                Some("10.1000/test".to_string()),
+            ),
+            (
+                "http://dx.doi.org/10.1000/test",
+                Some("10.1000/test".to_string()),
+            ),
+            (
+                " https://doi.org/10.1000/test ",
+                Some("10.1000/test".to_string()),
+            ),
             ("doi:10.1000/test", Some("10.1000/test".to_string())),
             ("DOI:10.1000/test", Some("10.1000/test".to_string())),
             ("doi: 10.1000/test", Some("10.1000/test".to_string())),
@@ -208,8 +213,14 @@ mod tests {
             ("DOI 10.1000/TEST", Some("10.1000/test".to_string())),
             ("DOI10.1000/TEST", Some("10.1000/test".to_string())),
             ("10.1000/TEST", Some("10.1000/test".to_string())),
-            ("HTTPS://DOI.ORG/10.1000/TEST", Some("10.1000/test".to_string())),
-            ("https://doi.org/10.1000/test [doi]", Some("10.1000/test".to_string())),
+            (
+                "HTTPS://DOI.ORG/10.1000/TEST",
+                Some("10.1000/test".to_string()),
+            ),
+            (
+                "https://doi.org/10.1000/test [doi]",
+                Some("10.1000/test".to_string()),
+            ),
             ("", None),
             ("invalid", None),
         ];
@@ -265,15 +276,9 @@ mod tests {
     #[test]
     fn test_split_issns() {
         // Test single ISSN
-        assert_eq!(
-            split_issns("1234-5678"),
-            vec!["1234-5678"]
-        );
+        assert_eq!(split_issns("1234-5678"), vec!["1234-5678"]);
 
-        assert_eq!(
-            split_issns("1234-5678 (Print)"),
-            vec!["1234-5678 (Print)"]
-        );
+        assert_eq!(split_issns("1234-5678 (Print)"), vec!["1234-5678 (Print)"]);
 
         assert_eq!(
             split_issns("1234-5678 (Print) 5678-1234"),
@@ -315,9 +320,6 @@ mod tests {
         );
 
         // Test empty page_str
-        assert_eq!(
-            split_issns(""),
-            Vec::<String>::new()
-        );
+        assert_eq!(split_issns(""), Vec::<String>::new());
     }
 }
