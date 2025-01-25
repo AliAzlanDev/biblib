@@ -21,6 +21,7 @@ dependencies = [
  "quick-xml",
  "rayon",
  "regex",
+ "serde",
  "strsim",
  "thiserror",
 ]

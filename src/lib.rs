@@ -102,6 +102,7 @@
 use std::collections::HashMap;
 use thiserror::Error;
 use quick_xml::events::attributes::AttrError;
+use serde::{Serialize, Deserialize};
 
 extern crate csv as csv_crate;
 
@@ -169,7 +170,7 @@ impl From<AttrError> for CitationError {
 }
 
 /// Represents an author of a citation.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Author {
     /// The author's family name (surname)
     pub family_name: String,
@@ -180,7 +181,7 @@ pub struct Author {
 }
 
 /// Represents a single citation with its metadata.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Citation {
     pub id: String,
     /// Type of the citation
@@ -230,7 +231,7 @@ pub struct Citation {
 }
 
 /// Represents a group of duplicate citations with one unique citation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DuplicateGroup {
     /// The unique (original) citation
     pub unique: Citation,
