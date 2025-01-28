@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New `source` field in `Citation` struct to track citation origin
 - `.with_source()` method on all parsers (RIS, PubMed, EndNote XML, CSV) to specify citation source
 - `source_preferences` option in `DeduplicatorConfig` for controlling unique citation selection
+- Cargo features for optional components:
+  - `csv` - Enable CSV format support
+  - `pubmed` - Enable PubMed/MEDLINE format support
+  - `xml` - Enable EndNote XML support
+  - `ris` - Enable RIS format support
+  - `dedupe` - Enable citation deduplication
+  - All features enabled by default
 
 ### Changed
 - Enhanced unique citation selection logic in deduplicator:
