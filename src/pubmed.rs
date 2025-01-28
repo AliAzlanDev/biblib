@@ -1,7 +1,6 @@
-//! PubMed format parser implementation.
+//! PubMed format parser implementation with source tracking support.
 //!
-//! The PubMed format is used by the National Library of Medicine for citations.
-//! This module provides functionality to parse PubMed formatted citations into structured data.
+//! Provides functionality to parse PubMed formatted citations with built-in source tracking.
 //!
 //! # Example
 //!
@@ -14,9 +13,12 @@
 //!
 //! "#;
 //!
-//! let parser = PubMedParser::new();
+//! let parser = PubMedParser::new()
+//!     .with_source("PubMed");
+//!     
 //! let citations = parser.parse(input).unwrap();
 //! assert_eq!(citations[0].title, "Example Title");
+//! assert_eq!(citations[0].source.clone().unwrap(), "PubMed");
 //! ```
 
 use crate::utils::{format_doi, format_page_numbers, parse_author_name};
@@ -28,11 +30,13 @@ use nanoid::nanoid;
 /// PubMed format is commonly used by PubMed and the National Library of Medicine
 /// for bibliographic citations.
 #[derive(Debug, Clone)]
-pub struct PubMedParser;
+pub struct PubMedParser {
+    source: Option<String>,
+}
 
 impl Default for PubMedParser {
     fn default() -> Self {
-        Self
+        Self { source: None }
     }
 }
 
@@ -54,6 +58,12 @@ impl PubMedParser {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    #[must_use]
+    pub fn with_source(mut self, source: &str) -> Self {
+        self.source = Some(source.to_string());
+        self
     }
 
     /// Parses an author string in the format "LastName, FirstName".
@@ -160,6 +170,7 @@ impl CitationParser for PubMedParser {
         let mut citations = Vec::new();
         let mut current_citation = Citation::default();
         current_citation.id = nanoid!();
+        current_citation.source = self.source.clone(); // Add source if provided
         let mut current_field = String::new();
         let mut temp_au_authors: Vec<Author> = Vec::new();
 

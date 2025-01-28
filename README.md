@@ -52,8 +52,24 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-biblib = "0.1.0"
+biblib = "0.2.0"  # All features enabled by default
 ```
+
+Or select specific features:
+
+```toml
+[dependencies]
+biblib = { version = "0.2.0", default-features = false, features = ["csv", "ris"] }
+```
+
+Available features:
+- `csv` - CSV format support
+- `pubmed` - PubMed/MEDLINE format support
+- `xml` - EndNote XML support (requires quick-xml)
+- `ris` - RIS format support
+- `dedupe` - Citation deduplication (requires rayon and strsim)
+
+All features are enabled by default. Disable `default-features` to select specific ones.
 
 ## Quick Start
 

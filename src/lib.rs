@@ -3,7 +3,24 @@
 //! `biblib` provides robust functionality for working with academic citations in various formats.
 //! It focuses on accurate parsing, format conversion, and intelligent deduplication of citations.
 //!
-//! # Key Features
+//! # Features
+//!
+//! The library has several optional features that can be enabled in your Cargo.toml:
+//!
+//! - `csv` - Enable CSV format support (enabled by default)
+//! - `pubmed` - Enable PubMed/MEDLINE format support (enabled by default)  
+//! - `xml` - Enable EndNote XML support (enabled by default)
+//! - `ris` - Enable RIS format support (enabled by default)
+//! - `dedupe` - Enable citation deduplication (enabled by default)
+//!
+//! To use only specific features, disable default features and enable just what you need:
+//!
+//! ```toml
+//! [dependencies]
+//! biblib = { version = "0.2.0", default-features = false, features = ["csv", "ris"] }
+//! ```
+//!
+//! # Key Characteristics
 //!
 //! - **Multiple Format Support**: Parse citations from:
 //!   - RIS (Research Information Systems)
@@ -11,12 +28,10 @@
 //!   - EndNote XML
 //!   - CSV with configurable mappings
 //!
-//! - **Intelligent Deduplication**:
-//!   - DOI-based matching
-//!   - Smart title comparison
-//!   - Journal name/abbreviation matching
-//!   - Configurable matching thresholds
-//!   - Parallel processing support
+//! - **Source Tracking**: Each parser can track the source of citations
+//!   - `with_source()` method available on all parsers
+//!   - Source information preserved in Citation objects
+//!   - Useful for tracking citation origins
 //!
 //! - **Rich Metadata Support**:
 //!   - Authors with affiliations
@@ -29,29 +44,66 @@
 //! ```rust
 //! use biblib::{CitationParser, RisParser};
 //!
-//! // Parse RIS format
+//! // Parse RIS format with source tracking
 //! let input = r#"TY  - JOUR
 //! TI  - Example Article
 //! AU  - Smith, John
 //! ER  -"#;
 //!
-//! let parser = RisParser::new();
+//! let parser = RisParser::new().with_source("Pubmed");
 //! let citations = parser.parse(input).unwrap();
 //! println!("Title: {}", citations[0].title);
+//! println!("Source: {}", citations[0].source.clone().unwrap());
+//! ```
+//! # Citation Formats
+//!
+//! Each format has a dedicated parser with format-specific features:
+//!
+//! ```rust
+//! use biblib::{RisParser, PubMedParser, EndNoteXmlParser, csv::CsvParser};
+//!
+//! // RIS format
+//! let ris = RisParser::new();
+//!
+//! // PubMed format
+//! let pubmed = PubMedParser::new().with_source("Pubmed");
+//!
+//! // EndNote XML
+//! let endnote = EndNoteXmlParser::new().with_source("Google Scholar");
+//!
+//! // CSV format
+//! let csv = CsvParser::new().with_source("Cochrane");
 //! ```
 //!
 //! # Citation Deduplication
 //!
 //! ```rust
+//! use biblib::{Citation, CitationParser, RisParser};
+//!
+//! let ris_input = r#"TY  - JOUR
+//! TI  - Example Citation 1
+//! AU  - Smith, John
+//! ER  -
+//!
+//! TY  - JOUR
+//! TI  - Example Citation 2
+//! AU  - Smith, John
+//! ER  -"#;
+//!
+//! let parser = RisParser::new();
+//! let mut citations = parser.parse(ris_input).unwrap();
+//!
+//! // Configure deduplication
 //! use biblib::dedupe::{Deduplicator, DeduplicatorConfig};
 //!
 //! // Configure deduplication
 //! let config = DeduplicatorConfig {
 //!     group_by_year: true,
 //!     run_in_parallel: true,
+//!     source_preferences: vec!["PubMed".to_string(), "Cochrane".to_string()],
 //! };
 //!
-//! let deduplicator = Deduplicator::with_config(config);
+//! let deduplicator = Deduplicator::new().with_config(config);
 //! let duplicate_groups = deduplicator.find_duplicates(&citations).unwrap();
 //!
 //! for group in duplicate_groups {
@@ -60,16 +112,6 @@
 //!         println!("  Duplicate: {}", duplicate.title);
 //!     }
 //! }
-//! ```
-//!
-//! # CSV Support with Custom Mappings
-//!
-//! ```rust
-//! use biblib::{CitationParser, csv::CsvParser};
-//!
-//! let input = "Title,Authors,Year\nExample Paper,Smith J,2023";
-//! let parser = CsvParser::new();
-//! let citations = parser.parse(input).unwrap();
 //! ```
 //!
 //! # Error Handling
@@ -82,7 +124,7 @@
 //!
 //! let result = RisParser::new().parse("invalid input");
 //! match result {
-//!     Ok(citations) => println!("Parsed {} citations"),
+//!     Ok(citations) => println!("Parsed {} citations", citations.len()),
 //!     Err(CitationError::InvalidFormat(msg)) => eprintln!("Parse error: {}", msg),
 //!     Err(e) => eprintln!("Other error: {}", e),
 //! }
@@ -106,18 +148,28 @@ use thiserror::Error;
 
 extern crate csv as csv_crate;
 
+#[cfg(feature = "csv")]
 pub mod csv;
+#[cfg(feature = "dedupe")]
 pub mod dedupe;
+#[cfg(feature = "xml")]
 pub mod endnote_xml;
+#[cfg(feature = "pubmed")]
 pub mod pubmed;
+#[cfg(feature = "ris")]
 pub mod ris;
-mod utils;
 
 // Reexports
+#[cfg(feature = "csv")]
 pub use csv::CsvParser;
+#[cfg(feature = "xml")]
 pub use endnote_xml::EndNoteXmlParser;
+#[cfg(feature = "pubmed")]
 pub use pubmed::PubMedParser;
+#[cfg(feature = "ris")]
 pub use ris::RisParser;
+
+mod utils;
 
 /// A specialized Result type for citation operations.
 pub type Result<T> = std::result::Result<T, CitationError>;
@@ -218,10 +270,8 @@ pub struct Citation {
     pub publisher: Option<String>,
     /// Additional fields not covered by standard fields
     pub extra_fields: HashMap<String, Vec<String>>,
-    /// Label indicating if this is a unique or duplicate citation
-    pub label: Option<String>,
-    /// ID linking duplicate citations together
-    pub duplicate_id: Option<String>,
+    /// Source of the citation (e.g. pubmed, ris, etc.)
+    pub source: Option<String>,
 }
 
 /// Represents a group of duplicate citations with one unique citation

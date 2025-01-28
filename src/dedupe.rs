@@ -17,7 +17,7 @@
 //! ## Usage
 //!
 //! ```rust
-//! use biblib::dedupe::{Deduplicator, Citation, Author};
+//! use biblib::{dedupe::Deduplicator, Citation, Author};
 //!
 //! // Create some sample citations
 //! let citations = vec![
@@ -77,9 +77,10 @@
 //! let config = DeduplicatorConfig {
 //!     group_by_year: false,     // Disable year-based grouping
 //!     run_in_parallel: true,    // Enable parallel processing
+//!     source_preferences: vec!["PubMed".to_string(), "CrossRef".to_string()],
 //! };
 //!
-//! let deduplicator = Deduplicator::with_config(config);
+//! let deduplicator = Deduplicator::new().with_config(config);
 //! ```
 //!
 //! ## Matching Criteria
@@ -137,6 +138,7 @@ const HTML_REPLACEMENTS: [(&str, &str); 13] = [
 /// let config = DeduplicatorConfig {
 ///     group_by_year: true,    // Enable year-based grouping
 ///     run_in_parallel: true,  // Enable parallel processing
+///     source_preferences: vec!["PubMed".to_string(), "Google Scholar      ".to_string()],
 /// };
 /// ```
 ///
@@ -157,6 +159,9 @@ pub struct DeduplicatorConfig {
     /// Whether to use parallel processing for year groups.
     /// Most effective when combined with `group_by_year = true`.
     pub run_in_parallel: bool,
+    /// Ordered list of preferred sources for unique citations.
+    /// First source in the list has highest priority.
+    pub source_preferences: Vec<String>,
 }
 
 /// Core deduplication engine for finding duplicate citations.
@@ -184,14 +189,14 @@ pub struct DeduplicatorConfig {
 /// use biblib::dedupe::{Deduplicator, DeduplicatorConfig};
 ///
 /// // Create with default settings
-/// let deduplicator = Deduplicator::new();
 ///
 /// // Or with custom configuration
 /// let config = DeduplicatorConfig {
 ///     group_by_year: true,
 ///     run_in_parallel: true,
+///     source_preferences: vec!["PubMed".to_string(), "Embase".to_string()],
 /// };
-/// let deduplicator = Deduplicator::with_config(config);
+/// let deduplicator = Deduplicator::new().with_config(config);
 /// ```
 ///
 /// # Performance
@@ -245,6 +250,7 @@ impl Deduplicator {
             config: DeduplicatorConfig {
                 group_by_year: true,
                 run_in_parallel: false,
+                source_preferences: Vec::new(),
             },
         }
     }
@@ -265,16 +271,18 @@ impl Deduplicator {
     /// let config = DeduplicatorConfig {
     ///     group_by_year: true,
     ///     run_in_parallel: true,
+    ///     source_preferences: vec!["PubMed".to_string(), "Google Scholar".to_string()],   
     /// };
-    /// let deduplicator = Deduplicator::with_config(config);
+    /// let deduplicator = Deduplicator::new().with_config(config);
     /// ```
     #[must_use]
-    pub fn with_config(mut config: DeduplicatorConfig) -> Self {
+    pub fn with_config(mut self, mut config: DeduplicatorConfig) -> Self {
         // Disable parallel processing if not grouping by year
         if !config.group_by_year {
             config.run_in_parallel = false;
         }
-        Self { config }
+        self.config = config;
+        self
     }
 
     /// Processes a list of citations and returns groups of duplicates.
@@ -295,7 +303,7 @@ impl Deduplicator {
     /// # Examples
     ///
     /// ```
-    /// use biblib::dedupe::{Deduplicator, Citation};
+    /// use biblib::{dedupe::Deduplicator, Citation};
     ///
     /// let citations = vec![
     ///     Citation {
@@ -344,6 +352,43 @@ impl Deduplicator {
         }
     }
 
+    fn select_unique_citation<'a>(&self, citations: &[&'a Citation]) -> &'a Citation {
+        if citations.len() == 1 {
+            return citations[0];
+        }
+
+        // First try source preferences
+        if !self.config.source_preferences.is_empty() {
+            for preferred_source in &self.config.source_preferences {
+                if let Some(citation) = citations
+                    .iter()
+                    .find(|c| c.source.as_ref().map_or(false, |s| s == preferred_source))
+                {
+                    return citation;
+                }
+            }
+        }
+
+        // If no source preference matches, prefer citations with abstracts
+        let citations_with_abstract: Vec<_> = citations
+            .iter()
+            .filter(|c| c.abstract_text.is_some())
+            .collect();
+
+        match citations_with_abstract.len() {
+            0 => citations[0],               // If no abstracts, use first citation
+            1 => citations_with_abstract[0], // If one abstract, use that
+            _ => {
+                // Multiple abstracts, prefer ones with DOI
+                let with_doi = citations_with_abstract
+                    .iter()
+                    .find(|c| c.doi.as_ref().map_or(false, |d| !d.is_empty()));
+
+                with_doi.copied().unwrap_or(citations_with_abstract[0])
+            }
+        }
+    }
+
     fn process_citation_group(
         &self,
         citations: &[&Citation],
@@ -383,7 +428,7 @@ impl Deduplicator {
                 continue;
             }
 
-            let mut duplicates = Vec::new();
+            let mut group_citations = vec![preprocessed[i].original];
             let current = &preprocessed[i];
 
             for j in 0..preprocessed.len() {
@@ -435,18 +480,25 @@ impl Deduplicator {
                 };
 
                 if is_duplicate {
-                    duplicates.push(other.original.clone());
+                    group_citations.push(other.original);
                     processed_ids.insert(other.original.id.clone());
                 }
             }
 
-            if !duplicates.is_empty() {
-                duplicates.sort_by(|a, b| a.id.cmp(&b.id));
+            if group_citations.len() > 1 {
+                let unique = self.select_unique_citation(&group_citations);
+
+                let duplicates: Vec<Citation> = group_citations
+                    .into_iter()
+                    .filter(|c| c.id != unique.id)
+                    .map(|c| c.clone())
+                    .collect();
+
                 duplicate_groups.push(DuplicateGroup {
-                    unique: current.original.clone(),
+                    unique: unique.clone(),
                     duplicates,
                 });
-                processed_ids.insert(current.original.id.clone());
+                processed_ids.insert(unique.id.clone());
             } else {
                 duplicate_groups.push(DuplicateGroup {
                     unique: current.original.clone(),
@@ -899,7 +951,7 @@ mod tests {
             group_by_year: false,
             ..Default::default()
         };
-        let deduplicator = Deduplicator::with_config(config);
+        let deduplicator = Deduplicator::new().with_config(config);
         let duplicate_groups = deduplicator.find_duplicates(&citations).unwrap();
 
         assert_eq!(duplicate_groups.len(), 1);
@@ -911,5 +963,72 @@ mod tests {
 
         assert_eq!(duplicate_groups.len(), 2);
         assert!(duplicate_groups.iter().all(|g| g.duplicates.is_empty()));
+    }
+
+    #[test]
+    fn test_source_preferences() {
+        let citations = vec![
+            Citation {
+                id: "1".to_string(),
+                title: "Title 1".to_string(),
+                source: Some("source2".to_string()),
+                doi: Some("10.1234/abc".to_string()),
+                journal: Some("Journal 1".to_string()),
+                year: Some(2020),
+                ..Default::default()
+            },
+            Citation {
+                id: "2".to_string(),
+                title: "Title 1".to_string(),
+                source: Some("source1".to_string()),
+                doi: Some("10.1234/abc".to_string()),
+                journal: Some("Journal 1".to_string()),
+                year: Some(2020),
+                ..Default::default()
+            },
+        ];
+
+        let config = DeduplicatorConfig {
+            source_preferences: vec!["source1".to_string(), "source2".to_string()],
+            ..Default::default()
+        };
+
+        let deduplicator = Deduplicator::new().with_config(config);
+        let duplicate_groups = deduplicator.find_duplicates(&citations).unwrap();
+
+        assert_eq!(duplicate_groups.len(), 1);
+        assert_eq!(duplicate_groups[0].unique.id, "2"); // source1 citation
+        assert_eq!(duplicate_groups[0].duplicates[0].id, "1");
+    }
+
+    #[test]
+    fn test_abstract_preference() {
+        let citations = vec![
+            Citation {
+                id: "1".to_string(),
+                title: "Title 1".to_string(),
+                abstract_text: None,
+                doi: Some("10.1234/abc".to_string()),
+                journal: Some("Journal 1".to_string()),
+                year: Some(2020),
+                ..Default::default()
+            },
+            Citation {
+                id: "2".to_string(),
+                title: "Title 1".to_string(),
+                abstract_text: Some("Abstract".to_string()),
+                doi: Some("10.1234/abc".to_string()),
+                journal: Some("Journal 1".to_string()),
+                year: Some(2020),
+                ..Default::default()
+            },
+        ];
+
+        let deduplicator = Deduplicator::new();
+        let duplicate_groups = deduplicator.find_duplicates(&citations).unwrap();
+
+        assert_eq!(duplicate_groups.len(), 1);
+        assert_eq!(duplicate_groups[0].unique.id, "2"); // citation with abstract
+        assert_eq!(duplicate_groups[0].duplicates[0].id, "1");
     }
 }

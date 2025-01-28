@@ -1,6 +1,7 @@
-//! CSV format parser implementation.
+//! CSV format parser implementation with source tracking support.
 //!
-//! This module provides functionality to parse CSV formatted citations with configurable headers.
+//! This module provides functionality to parse CSV formatted citations with configurable headers
+//! and built-in source tracking capabilities.
 //!
 //! # Example
 //!
@@ -8,9 +9,13 @@
 //! use biblib::{CitationParser, CsvParser};
 //!
 //! let input = "Title,Author,Year\nExample Paper,Smith J,2023";
-//! let parser = CsvParser::new();
+//!
+//! let parser = CsvParser::new()
+//!     .with_source("Cochrane");
+//!     
 //! let citations = parser.parse(input).unwrap();
 //! assert_eq!(citations[0].title, "Example Paper");
+//! assert_eq!(citations[0].source.clone().unwrap(), "Cochrane");
 //! ```
 
 use csv::{ReaderBuilder, StringRecord};
@@ -18,7 +23,7 @@ use nanoid::nanoid;
 use std::collections::HashMap;
 
 use crate::utils::{format_doi, format_page_numbers, parse_author_name, split_issns};
-use crate::{Author, Citation, CitationError, CitationParser, DuplicateGroup, Result};
+use crate::{Author, Citation, CitationError, CitationParser, Result};
 
 /// Default header mappings for common CSV column names
 const DEFAULT_HEADERS: &[(&str, &[&str])] = &[
@@ -143,7 +148,7 @@ impl CsvConfig {
 ///
 /// Basic usage:
 /// ```
-/// use biblib::csv::CsvParser;
+/// use biblib::{CsvParser, CitationParser};
 ///
 /// let input = "Title,Author,Year\nExample Paper,Smith J,2023";
 /// let parser = CsvParser::new();
@@ -157,11 +162,12 @@ impl CsvConfig {
 /// let mut config = CsvConfig::new();
 /// config.set_delimiter(b';');
 ///
-/// let parser = CsvParser::with_config(config);
+/// let parser = CsvParser::new().with_config(config);
 /// ```
 #[derive(Debug, Clone)]
 pub struct CsvParser {
     config: CsvConfig,
+    source: Option<String>,
 }
 
 impl Default for CsvParser {
@@ -176,18 +182,27 @@ impl CsvParser {
     pub fn new() -> Self {
         Self {
             config: CsvConfig::new(),
+            source: None,
         }
     }
 
     /// Creates a new CSV parser with custom configuration
     #[must_use]
-    pub fn with_config(config: CsvConfig) -> Self {
-        Self { config }
+    pub fn with_config(mut self, config: CsvConfig) -> Self {
+        self.config = config;
+        self
+    }
+
+    #[must_use]
+    pub fn with_source(mut self, source: &str) -> Self {
+        self.source = Some(source.to_string());
+        self
     }
 
     /// Parses a record into a Citation using the current header mapping
     fn parse_record(&self, headers: &[String], record: StringRecord) -> Result<Citation> {
         let mut citation = Citation::default();
+        citation.source = self.source.clone(); // Add source if provided
         let mut has_id = false;
 
         for (i, value) in record.iter().enumerate() {
@@ -239,12 +254,6 @@ impl CsvParser {
                     "language" => citation.language = Some(value.to_string()),
                     "publisher" => citation.publisher = Some(value.to_string()),
                     "url" => citation.urls.push(value.to_string()),
-                    "label" => citation.label = Some(value.to_string()),
-                    "duplicate_id" => {
-                        if !value.is_empty() {
-                            citation.duplicate_id = Some(value.to_string())
-                        }
-                    }
                     _ => {
                         citation
                             .extra_fields
@@ -261,57 +270,6 @@ impl CsvParser {
         }
 
         Ok(citation)
-    }
-
-    /// Parse and group citations by duplicate ID
-    pub fn parse_with_duplicates(&self, input: &str) -> Result<Vec<DuplicateGroup>> {
-        let citations = self.parse(input)?;
-
-        let mut groups: HashMap<String, Vec<Citation>> = HashMap::new();
-        let mut single_uniques = Vec::new();
-
-        // First pass - separate citations with duplicate_id from standalone uniques
-        for citation in citations {
-            if let Some(dup_id) = &citation.duplicate_id {
-                groups.entry(dup_id.clone()).or_default().push(citation);
-            } else if citation.label.as_deref() == Some("Unique") {
-                // Collect unique citations that don't have a duplicate_id
-                single_uniques.push(citation);
-            }
-        }
-
-        // Convert groups into DuplicateGroups
-        let mut result = Vec::new();
-
-        // Process groups with duplicates
-        for (_id, mut citations) in groups {
-            if let Some(unique_idx) = citations
-                .iter()
-                .position(|c| c.label.as_deref() == Some("Unique"))
-            {
-                let unique = citations.remove(unique_idx);
-                let duplicates = citations
-                    .into_iter()
-                    .filter(|c| c.label.as_deref() == Some("Duplicate"))
-                    .collect();
-                result.push(DuplicateGroup { unique, duplicates });
-            } else {
-                return Err(CitationError::MissingField(format!(
-                    "No unique citation found for duplicate group {}",
-                    _id
-                )));
-            }
-        }
-
-        // Add single unique citations as groups with empty duplicates vec
-        for unique in single_uniques {
-            result.push(DuplicateGroup {
-                unique,
-                duplicates: Vec::new(),
-            });
-        }
-
-        Ok(result)
     }
 }
 
@@ -383,7 +341,7 @@ Test Paper,Smith J,2023,Test Journal";
             .set_header_mapping("year", vec!["Published".to_string()])
             .set_header_mapping("journal", vec!["Source".to_string()]);
 
-        let parser = CsvParser::with_config(config);
+        let parser = CsvParser::new().with_config(config);
         let citations = parser.parse(input).unwrap();
 
         assert_eq!(citations[0].title, "Test Paper");
@@ -413,59 +371,11 @@ Test Paper,\"Smith, John; Doe, Jane\",2023";
         let mut config = CsvConfig::new();
         config.set_delimiter(b';');
 
-        let parser = CsvParser::with_config(config);
+        let parser = CsvParser::new().with_config(config);
         let citations = parser.parse(input).unwrap();
 
         assert_eq!(citations[0].title, "Test Paper");
         assert_eq!(citations[0].authors[0].family_name, "Smith");
         assert_eq!(citations[0].year, Some(2023));
-    }
-
-    #[test]
-    fn test_duplicate_groups() {
-        let input = "\
-Title,Author,Year,Label,DuplicateId
-Original Paper,Smith J,2023,Unique,group1
-Similar Paper,Smith J,2023,Duplicate,group1
-Another Paper,Doe J,2022,Unique,group2
-Copy Paper,Doe J,2022,Duplicate,group2";
-
-        let parser = CsvParser::new();
-        let groups = parser.parse_with_duplicates(input).unwrap();
-
-        assert_eq!(groups.len(), 2);
-        assert_eq!(groups[0].unique.label, Some("Unique".to_string()));
-        assert_eq!(groups[0].duplicates.len(), 1);
-        assert_eq!(groups[0].duplicates[0].label, Some("Duplicate".to_string()));
-    }
-
-    #[test]
-    fn test_duplicate_groups_with_singles() {
-        let input = "\
-Title,Author,Year,Label,DuplicateId
-Original Paper,Smith J,2023,Unique,group1
-Similar Paper,Smith J,2023,Duplicate,group1
-Standalone Paper,Doe J,2022,Unique,
-Another Paper,Wilson K,2021,Unique,group2
-Copy Paper,Wilson K,2021,Duplicate,group2";
-
-        let parser = CsvParser::new();
-        let groups = parser.parse_with_duplicates(input).unwrap();
-
-        assert_eq!(groups.len(), 3); // Two groups + one standalone
-
-        // Find the standalone paper
-        let standalone = groups
-            .iter()
-            .find(|g| g.unique.title == "Standalone Paper")
-            .unwrap();
-        assert_eq!(standalone.duplicates.len(), 0);
-
-        // Check group with duplicates
-        let with_duplicate = groups
-            .iter()
-            .find(|g| g.unique.title == "Original Paper")
-            .unwrap();
-        assert_eq!(with_duplicate.duplicates.len(), 1);
     }
 }
