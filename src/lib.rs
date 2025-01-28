@@ -301,6 +301,79 @@ pub trait CitationParser {
     fn parse(&self, input: &str) -> Result<Vec<Citation>>;
 }
 
+/// Format detection and automatic parsing of citation files
+///
+/// # Arguments
+///
+/// * `content` - The content of the file to parse
+/// * `source` - Source of citations
+///
+/// # Returns
+///
+/// A Result containing a vector of parsed Citations and the detected format,
+/// or a CitationError if parsing fails
+///
+/// # Examples
+///
+/// ```
+/// use biblib::detect_and_parse;
+/// 
+/// let content = r#"TY  - JOUR
+/// TI  - Example Title
+/// ER  -"#;
+///
+/// let (citations, format) = detect_and_parse(content, "Cochrane").unwrap();
+/// assert_eq!(format, "RIS");
+/// assert_eq!(citations[0].title, "Example Title");
+/// assert_eq!(citations[0].source.as_deref(), Some("Cochrane"));
+/// ```
+pub fn detect_and_parse(content: &str, source: &str) -> Result<(Vec<Citation>, &'static str)> {
+    let trimmed = content.trim();
+    
+    // Empty content check
+    if trimmed.is_empty() {
+        return Err(CitationError::InvalidFormat("Empty content".into()));
+    }
+
+    // Try to detect format based on content patterns
+    if trimmed.starts_with("<?xml") || trimmed.starts_with("<xml>") {
+        // EndNote XML format
+        #[cfg(feature = "xml")]
+        {
+            let parser = EndNoteXmlParser::new().with_source(source);
+            return parser.parse(content).map(|citations| (citations, "EndNote XML"));
+        }
+        #[cfg(not(feature = "xml"))]
+        return Err(CitationError::Other("EndNote XML support not enabled".into()));
+    }
+
+    // Check for RIS format (starts with TY or has TY  - pattern)
+    if trimmed.starts_with("TY  -") || trimmed.contains("\nTY  -") {
+        #[cfg(feature = "ris")]
+        {
+            let parser = RisParser::new().with_source(source);
+            return parser.parse(content).map(|citations| (citations, "RIS"));
+        }
+        #[cfg(not(feature = "ris"))]
+        return Err(CitationError::Other("RIS support not enabled".into()));
+    }
+
+    // Check for PubMed format (starts with PMID- or has PMID- pattern)
+    if trimmed.starts_with("PMID-") || trimmed.contains("\nPMID-") {
+        #[cfg(feature = "pubmed")]
+        {
+            let parser = PubMedParser::new().with_source(source);
+            return parser.parse(content).map(|citations| (citations, "PubMed"));
+        }
+        #[cfg(not(feature = "pubmed"))]
+        return Err(CitationError::Other("PubMed support not enabled".into()));
+    }
+
+    Err(CitationError::InvalidFormat(
+        "Unable to detect citation format".into(),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -324,5 +397,56 @@ mod tests {
             affiliation: None,
         };
         assert_eq!(author1, author2);
+    }
+
+    #[test]
+    fn test_detect_and_parse_ris() {
+        let content = r#"TY  - JOUR
+TI  - Test Title
+AU  - Smith, John
+ER  -"#;
+
+        let (citations, format) = detect_and_parse(content, "Google Scholar").unwrap();
+        assert_eq!(format, "RIS");
+        assert_eq!(citations[0].title, "Test Title");
+        assert_eq!(citations[0].source.as_deref(), Some("Google Scholar"));
+    }
+
+    #[test]
+    fn test_detect_and_parse_pubmed() {
+        let content = r#"PMID- 12345678
+TI  - Test Title
+FAU - Smith, John"#;
+
+        let (citations, format) = detect_and_parse(content, "Pubmed").unwrap();
+        assert_eq!(format, "PubMed");
+        assert_eq!(citations[0].title, "Test Title");
+        assert_eq!(citations[0].source.as_deref(), Some("Pubmed"));
+    }
+
+    #[test]
+    fn test_detect_and_parse_endnote() {
+        let content = r#"<?xml version="1.0" encoding="UTF-8"?>
+<xml><records><record>
+<titles><title>Test Title</title></titles>
+</record></records></xml>"#;
+
+        let (citations, format) = detect_and_parse(content, "Embase").unwrap();
+        assert_eq!(format, "EndNote XML");
+        assert_eq!(citations[0].title, "Test Title");
+        assert_eq!(citations[0].source.as_deref(), Some("Embase"));
+    }
+
+    #[test]
+    fn test_detect_and_parse_empty() {
+        let result = detect_and_parse("", "Any Source");
+        assert!(matches!(result, Err(CitationError::InvalidFormat(_))));
+    }
+
+    #[test]
+    fn test_detect_and_parse_unknown() {
+        let content = "Some random content\nthat doesn't match\nany known format";
+        let result = detect_and_parse(content, "Unknown");
+        assert!(matches!(result, Err(CitationError::InvalidFormat(_))));
     }
 }

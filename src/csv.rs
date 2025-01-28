@@ -15,7 +15,7 @@
 //!     
 //! let citations = parser.parse(input).unwrap();
 //! assert_eq!(citations[0].title, "Example Paper");
-//! assert_eq!(citations[0].source.clone().unwrap(), "Cochrane");
+//! assert_eq!(citations[0].source.as_deref(), Some("Cochrane"));
 //! ```
 
 use csv::{ReaderBuilder, StringRecord};

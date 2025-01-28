@@ -18,7 +18,7 @@
 //!     
 //! let citations = parser.parse(input).unwrap();
 //! assert_eq!(citations[0].title, "Example Title");
-//! assert_eq!(citations[0].source.clone().unwrap(), "Embase");
+//! assert_eq!(citations[0].source.as_deref(), Some("Embase"));
 //! ```
 
 use nanoid::nanoid;

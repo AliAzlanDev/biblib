@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2025-01-28
+
+### Added
+- New `detect_and_parse` function for automatic format detection and parsing
+- Support for automatic detection of RIS, PubMed, and EndNote XML formats
+
 ## [0.2.0] - 2025-01-28
 
 ### Added

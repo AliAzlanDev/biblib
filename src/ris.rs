@@ -17,7 +17,7 @@
 //!     
 //! let citations = parser.parse(input).unwrap();
 //! assert_eq!(citations[0].title, "Example Title");
-//! assert_eq!(citations[0].source.clone().unwrap(), "Google Scholar");
+//! assert_eq!(citations[0].source.as_deref(), Some("Google Scholar"));
 //! ```
 
 use crate::utils::{format_doi, format_page_numbers, parse_author_name};
