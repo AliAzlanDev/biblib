@@ -2,27 +2,27 @@
 
 [![Crates.io](https://img.shields.io/crates/v/biblib.svg)](https://crates.io/crates/biblib)
 [![Documentation](https://docs.rs/biblib/badge.svg)](https://docs.rs/biblib)
-[![License: GPL-3.0](https://img.shields.io/crates/l/biblib)](https://opensource.org/license/gpl-3-0)
 
 A comprehensive Rust library for parsing, managing, and deduplicating academic citations. `biblib` provides robust support for multiple citation formats, intelligent deduplication, and extensive metadata handling.
 
 > **Note:** This crate is under active development. There may be some breaking changes between versions. Please check the changelog before upgrading.
 
-
 ## Features
 
 ### Multiple Format Support
+
 - **RIS (Research Information Systems)**
   - Full tag support
   - Author name parsing
   - Journal abbreviations
-  
 - **PubMed/MEDLINE**
+
   - Complete field coverage
-  - MeSH terms support 
+  - MeSH terms support
   - Affiliation handling
 
 - **EndNote XML**
+
   - Full XML schema support
   - Unicode handling
   - Custom field mapping
@@ -33,6 +33,7 @@ A comprehensive Rust library for parsing, managing, and deduplicating academic c
   - Flexible field mapping
 
 ### Intelligent Deduplication
+
 - DOI-based matching
 - Smart title comparison using Jaro-Winkler distance
 - Journal name/abbreviation matching
@@ -41,6 +42,7 @@ A comprehensive Rust library for parsing, managing, and deduplicating academic c
 - Parallel processing support
 
 ### Rich Metadata Support
+
 - Complete author information with affiliations
 - Journal details (name, abbreviation, ISSN)
 - DOIs and other identifiers (PMID, PMC ID)
@@ -63,6 +65,7 @@ biblib = { version = "0.2.0", default-features = false, features = ["csv", "ris"
 ```
 
 Available features:
+
 - `csv` - CSV format support
 - `pubmed` - PubMed/MEDLINE format support
 - `xml` - EndNote XML support (requires quick-xml)
@@ -126,25 +129,25 @@ let citations = parser.parse("Article Name;Author;Year\nExample Paper;Smith J;20
 
 ## Supported Fields
 
-| Field         | Description                    | RIS | PubMed | EndNote XML | CSV |
-|---------------|--------------------------------|-----|---------|------------|-----|
-| Title         | Work title                     | ✓   | ✓       | ✓          | ✓   |
-| Authors       | Author names and affiliations  | ✓   | ✓       | ✓          | ✓   |
-| Journal       | Journal name and abbreviation  | ✓   | ✓       | ✓          | ✓   |
-| Year          | Publication year               | ✓   | ✓       | ✓          | ✓   |
-| Volume        | Journal volume                 | ✓   | ✓       | ✓          | ✓   |
-| Issue         | Journal issue                  | ✓   | ✓       | ✓          | ✓   |
-| Pages         | Page range                     | ✓   | ✓       | ✓          | ✓   |
-| DOI           | Digital Object Identifier      | ✓   | ✓       | ✓          | ✓   |
-| PMID          | PubMed ID                      | ✓   | ✓       | -          | ✓   |
-| PMC ID        | PubMed Central ID              | ✓   | ✓       | ✓          | ✓   |
-| Abstract      | Abstract text                  | ✓   | ✓       | ✓          | ✓   |
-| Keywords      | Keywords/tags                  | ✓   | ✓       | ✓          | ✓   |
-| Language      | Publication language           | ✓   | ✓       | ✓          | ✓   |
-| Publisher     | Publisher information          | ✓   | -       | ✓          | ✓   |
-| URLs          | Related URLs                   | ✓   | -       | ✓          | ✓   |
-| ISSN          | International Standard Serial Number | ✓ | ✓    | ✓          | ✓   |
-| MeSH Terms    | Medical Subject Headings       | -   | ✓       | -          | -   |
+| Field      | Description                          | RIS | PubMed | EndNote XML | CSV |
+| ---------- | ------------------------------------ | --- | ------ | ----------- | --- |
+| Title      | Work title                           | ✓   | ✓      | ✓           | ✓   |
+| Authors    | Author names and affiliations        | ✓   | ✓      | ✓           | ✓   |
+| Journal    | Journal name and abbreviation        | ✓   | ✓      | ✓           | ✓   |
+| Year       | Publication year                     | ✓   | ✓      | ✓           | ✓   |
+| Volume     | Journal volume                       | ✓   | ✓      | ✓           | ✓   |
+| Issue      | Journal issue                        | ✓   | ✓      | ✓           | ✓   |
+| Pages      | Page range                           | ✓   | ✓      | ✓           | ✓   |
+| DOI        | Digital Object Identifier            | ✓   | ✓      | ✓           | ✓   |
+| PMID       | PubMed ID                            | ✓   | ✓      | -           | ✓   |
+| PMC ID     | PubMed Central ID                    | ✓   | ✓      | ✓           | ✓   |
+| Abstract   | Abstract text                        | ✓   | ✓      | ✓           | ✓   |
+| Keywords   | Keywords/tags                        | ✓   | ✓      | ✓           | ✓   |
+| Language   | Publication language                 | ✓   | ✓      | ✓           | ✓   |
+| Publisher  | Publisher information                | ✓   | -      | ✓           | ✓   |
+| URLs       | Related URLs                         | ✓   | -      | ✓           | ✓   |
+| ISSN       | International Standard Serial Number | ✓   | ✓      | ✓           | ✓   |
+| MeSH Terms | Medical Subject Headings             | -   | ✓      | -           | -   |
 
 ## Advanced Usage
 
@@ -194,7 +197,12 @@ Make sure to update tests as appropriate and follow the existing code style.
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+This project is licensed under either of
+
+- Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.
 
 ## Project Status
 

@@ -1,10 +1,10 @@
 [package]
 name = "biblib"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 description = "Parse, manage, and deduplicate academic citations"
 authors = ["Ali Azlan <aliazlanofficial@gmail.com>"]
-license = "GPL-3.0"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/aliazlanpro/biblib"
 documentation = "https://docs.rs/biblib"
 readme = "README.md"
