@@ -22,7 +22,9 @@ use csv::{ReaderBuilder, StringRecord};
 use nanoid::nanoid;
 use std::collections::HashMap;
 
-use crate::utils::{format_doi, format_page_numbers, parse_author_name, split_issns};
+use crate::utils::{
+    format_doi, format_page_numbers, parse_author_name, parse_year_only, split_issns,
+};
 use crate::{Author, Citation, CitationError, CitationParser, Result};
 
 /// Default header mappings for common CSV column names
@@ -230,8 +232,11 @@ impl CsvParser {
                     }
                     "journal" => citation.journal = Some(value.to_string()),
                     "year" => {
-                        if let Ok(year) = value.parse() {
-                            citation.year = Some(year);
+                        citation.date = parse_year_only(value);
+                        // For backward compatibility, also set the deprecated year field
+                        #[allow(deprecated)]
+                        {
+                            citation.year = citation.date.year;
                         }
                     }
                     "volume" => citation.volume = Some(value.to_string()),
@@ -324,7 +329,7 @@ Another Paper,\"Doe, Jane\",2022,Another Journal";
         assert_eq!(citations.len(), 2);
         assert_eq!(citations[0].title, "Test Paper");
         assert_eq!(citations[0].authors[0].family_name, "Smith");
-        assert_eq!(citations[0].year, Some(2023));
+        assert_eq!(citations[0].date.year, Some(2023));
         assert_eq!(citations[0].journal, Some("Test Journal".to_string()));
     }
 
@@ -346,7 +351,7 @@ Test Paper,Smith J,2023,Test Journal";
 
         assert_eq!(citations[0].title, "Test Paper");
         assert_eq!(citations[0].authors[0].family_name, "Smith");
-        assert_eq!(citations[0].year, Some(2023));
+        assert_eq!(citations[0].date.year, Some(2023));
         assert_eq!(citations[0].journal, Some("Test Journal".to_string()));
     }
 
@@ -376,6 +381,6 @@ Test Paper,\"Smith, John; Doe, Jane\",2023";
 
         assert_eq!(citations[0].title, "Test Paper");
         assert_eq!(citations[0].authors[0].family_name, "Smith");
-        assert_eq!(citations[0].year, Some(2023));
+        assert_eq!(citations[0].date.year, Some(2023));
     }
 }

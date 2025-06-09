@@ -352,6 +352,12 @@ impl Deduplicator {
         }
     }
 
+    /// Get the year from a citation, providing backward compatibility.
+    /// Prefers the new `date.year` field, falls back to deprecated `year` field.
+    fn get_citation_year(citation: &Citation) -> Option<i32> {
+        Self::get_citation_year_static(citation)
+    }
+
     fn select_unique_citation<'a>(&self, citations: &[&'a Citation]) -> &'a Citation {
         if citations.len() == 1 {
             return citations[0];
@@ -452,7 +458,8 @@ impl Deduplicator {
                 let pages_match = current.original.pages.is_some()
                     && other.original.pages.is_some()
                     && current.original.pages == other.original.pages;
-                let years_match = current.original.year == other.original.year;
+                let years_match = Self::get_citation_year(current.original)
+                    == Self::get_citation_year(other.original);
 
                 let is_duplicate = match (&current.original.doi, &other.original.doi) {
                     // With DOIs
@@ -514,11 +521,17 @@ impl Deduplicator {
         let mut year_map: HashMap<i32, Vec<&Citation>> = HashMap::new();
 
         for citation in citations {
-            let year = citation.year.unwrap_or(0);
+            let year = Self::get_citation_year_static(citation).unwrap_or(0);
             year_map.entry(year).or_default().push(citation);
         }
 
         year_map
+    }
+
+    /// Static version of get_citation_year for use in static contexts
+    fn get_citation_year_static(citation: &Citation) -> Option<i32> {
+        #[allow(deprecated)]
+        citation.date.year.or(citation.year)
     }
 
     fn convert_unicode_string(input: &str) -> String {
@@ -655,7 +668,11 @@ mod tests {
                 authors: vec![],
                 journal: None,
                 journal_abbr: None,
-                year: Some(2020),
+                date: crate::Date {
+                    year: Some(2020),
+                    month: None,
+                    day: None,
+                },
                 volume: None,
                 abstract_text: None,
                 doi: None,
@@ -667,7 +684,11 @@ mod tests {
                 authors: vec![],
                 journal: None,
                 journal_abbr: None,
-                year: None,
+                date: crate::Date {
+                    year: None,
+                    month: None,
+                    day: None,
+                },
                 volume: None,
                 abstract_text: None,
                 doi: None,
@@ -686,7 +707,11 @@ mod tests {
             Citation {
                 id: "1".to_string(),
                 title: "Title 1".to_string(),
-                year: Some(2020),
+                date: crate::Date {
+                    year: Some(2020),
+                    month: None,
+                    day: None,
+                },
                 doi: Some("10.1234/abc".to_string()),
                 journal: Some("Journal 1".to_string()),
                 ..Default::default()
@@ -694,7 +719,11 @@ mod tests {
             Citation {
                 id: "2".to_string(),
                 title: "Title 1".to_string(),
-                year: Some(2020),
+                date: crate::Date {
+                    year: Some(2020),
+                    month: None,
+                    day: None,
+                },
                 doi: Some("10.1234/abc".to_string()),
                 journal: Some("Journal 1".to_string()),
                 ..Default::default()
@@ -702,7 +731,11 @@ mod tests {
             Citation {
                 id: "3".to_string(),
                 title: "Title 2".to_string(),
-                year: Some(2020),
+                date: crate::Date {
+                    year: Some(2020),
+                    month: None,
+                    day: None,
+                },
                 doi: Some("10.1234/def".to_string()),
                 journal: Some("Journal 2".to_string()),
                 ..Default::default()
@@ -730,7 +763,11 @@ mod tests {
             Citation {
                 id: "1".to_string(),
                 title: "Title 1".to_string(),
-                year: Some(2020),
+                date: crate::Date {
+                    year: Some(2020),
+                    month: None,
+                    day: None,
+                },
                 doi: Some("10.1234/abc".to_string()),
                 journal: Some("Journal 1".to_string()),
                 volume: Some("24".to_string()),
@@ -739,7 +776,11 @@ mod tests {
             Citation {
                 id: "2".to_string(),
                 title: "Title 1".to_string(),
-                year: Some(2020),
+                date: crate::Date {
+                    year: Some(2020),
+                    month: None,
+                    day: None,
+                },
                 doi: Some("".to_string()),
                 journal: Some("Journal 1".to_string()),
                 volume: Some("24".to_string()),
@@ -748,7 +789,11 @@ mod tests {
             Citation {
                 id: "3".to_string(),
                 title: "Title 2".to_string(),
-                year: Some(2020),
+                date: crate::Date {
+                    year: Some(2020),
+                    month: None,
+                    day: None,
+                },
                 doi: Some("".to_string()),
                 journal: Some("Journal 2".to_string()),
                 ..Default::default()
@@ -932,7 +977,11 @@ mod tests {
             Citation {
                 id: "1".to_string(),
                 title: "Title 1".to_string(),
-                year: Some(2020),
+                date: crate::Date {
+                    year: Some(2020),
+                    month: None,
+                    day: None,
+                },
                 doi: Some("10.1234/abc".to_string()),
                 journal: Some("Journal 1".to_string()),
                 ..Default::default()
@@ -940,7 +989,11 @@ mod tests {
             Citation {
                 id: "2".to_string(),
                 title: "Title 1".to_string(),
-                year: Some(2019), // Different year
+                date: crate::Date {
+                    year: Some(2019), // Different year
+                    month: None,
+                    day: None,
+                },
                 doi: Some("10.1234/abc".to_string()),
                 journal: Some("Journal 1".to_string()),
                 ..Default::default()
@@ -974,7 +1027,11 @@ mod tests {
                 source: Some("source2".to_string()),
                 doi: Some("10.1234/abc".to_string()),
                 journal: Some("Journal 1".to_string()),
-                year: Some(2020),
+                date: crate::Date {
+                    year: Some(2020),
+                    month: None,
+                    day: None,
+                },
                 ..Default::default()
             },
             Citation {
@@ -983,7 +1040,11 @@ mod tests {
                 source: Some("source1".to_string()),
                 doi: Some("10.1234/abc".to_string()),
                 journal: Some("Journal 1".to_string()),
-                year: Some(2020),
+                date: crate::Date {
+                    year: Some(2020),
+                    month: None,
+                    day: None,
+                },
                 ..Default::default()
             },
         ];
@@ -1010,7 +1071,11 @@ mod tests {
                 abstract_text: None,
                 doi: Some("10.1234/abc".to_string()),
                 journal: Some("Journal 1".to_string()),
-                year: Some(2020),
+                date: crate::Date {
+                    year: Some(2020),
+                    month: None,
+                    day: None,
+                },
                 ..Default::default()
             },
             Citation {
@@ -1019,7 +1084,11 @@ mod tests {
                 abstract_text: Some("Abstract".to_string()),
                 doi: Some("10.1234/abc".to_string()),
                 journal: Some("Journal 1".to_string()),
-                year: Some(2020),
+                date: crate::Date {
+                    year: Some(2020),
+                    month: None,
+                    day: None,
+                },
                 ..Default::default()
             },
         ];

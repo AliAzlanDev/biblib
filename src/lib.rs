@@ -219,6 +219,27 @@ impl From<AttrError> for CitationError {
     }
 }
 
+/// Represents a publication date with optional day, month, and year components.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Date {
+    /// Publication year
+    pub year: Option<i32>,
+    /// Publication month (1-12)
+    pub month: Option<u8>,
+    /// Publication day (1-31)
+    pub day: Option<u8>,
+}
+
+impl Default for Date {
+    fn default() -> Self {
+        Self {
+            year: None,
+            month: None,
+            day: None,
+        }
+    }
+}
+
 /// Represents an author of a citation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Author {
@@ -244,7 +265,10 @@ pub struct Citation {
     pub journal: Option<String>,
     /// Journal abbreviation
     pub journal_abbr: Option<String>,
+    /// Publication date with day, month, and year
+    pub date: Date,
     /// Publication year
+    #[deprecated(since = "0.3.0", note = "Use `date.year` instead")]
     pub year: Option<i32>,
     /// Volume number
     pub volume: Option<String>,
@@ -321,7 +345,7 @@ pub trait CitationParser {
 ///
 /// ```
 /// use biblib::detect_and_parse;
-/// 
+///
 /// let content = r#"TY  - JOUR
 /// TI  - Example Title
 /// ER  -"#;
@@ -333,7 +357,7 @@ pub trait CitationParser {
 /// ```
 pub fn detect_and_parse(content: &str, source: &str) -> Result<(Vec<Citation>, &'static str)> {
     let trimmed = content.trim();
-    
+
     // Empty content check
     if trimmed.is_empty() {
         return Err(CitationError::InvalidFormat("Empty content".into()));
@@ -345,10 +369,14 @@ pub fn detect_and_parse(content: &str, source: &str) -> Result<(Vec<Citation>, &
         #[cfg(feature = "xml")]
         {
             let parser = EndNoteXmlParser::new().with_source(source);
-            return parser.parse(content).map(|citations| (citations, "EndNote XML"));
+            return parser
+                .parse(content)
+                .map(|citations| (citations, "EndNote XML"));
         }
         #[cfg(not(feature = "xml"))]
-        return Err(CitationError::Other("EndNote XML support not enabled".into()));
+        return Err(CitationError::Other(
+            "EndNote XML support not enabled".into(),
+        ));
     }
 
     // Check for RIS format (starts with TY or has TY  - pattern)

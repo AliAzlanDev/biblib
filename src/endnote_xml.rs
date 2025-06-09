@@ -20,6 +20,8 @@
 //! assert_eq!(citations[0].title, "Example Title");
 //! assert_eq!(citations[0].source.as_deref(), Some("Embase"));
 //! ```
+//!
+//! Visit the [EndNote: XML Document Type Definition](https://support.clarivate.com/Endnote/s/article/EndNote-XML-Document-Type-Definition?language=en_US) for more details.
 
 use nanoid::nanoid;
 use quick_xml::events::Event;
@@ -27,7 +29,9 @@ use quick_xml::name::QName;
 use quick_xml::reader::Reader;
 use std::io::BufRead;
 
-use crate::utils::{format_doi, format_page_numbers, parse_author_name, split_issns};
+use crate::utils::{
+    format_doi, format_page_numbers, parse_author_name, parse_endnote_date, split_issns,
+};
 use crate::{Author, Citation, CitationError, CitationParser, Result};
 
 /// Parser for EndNote XML format citations.
@@ -86,6 +90,60 @@ impl EndNoteXmlParser {
         }
 
         Ok(text.trim().to_string())
+    }
+
+    /// Extracts date components (year, month, day) from a year element
+    fn extract_date_from_year_element<B: BufRead>(
+        reader: &mut Reader<B>,
+        e: &quick_xml::events::BytesStart,
+    ) -> Result<(Option<i32>, Option<u8>, Option<u8>)> {
+        let mut year_val = None;
+        let mut month_val = None;
+        let mut day_val = None;
+
+        // First, extract attributes if present
+        for attr in e.attributes() {
+            let attr = attr
+                .map_err(|e| CitationError::InvalidFormat(format!("Invalid attribute: {}", e)))?;
+            match attr.key.as_ref() {
+                b"year" => {
+                    if let Ok(year_str) = std::str::from_utf8(&attr.value) {
+                        year_val = year_str.parse::<i32>().ok();
+                    }
+                }
+                b"month" => {
+                    if let Ok(month_str) = std::str::from_utf8(&attr.value) {
+                        month_val = month_str
+                            .parse::<u8>()
+                            .ok()
+                            .filter(|&m| (1..=12).contains(&m));
+                    }
+                }
+                b"day" => {
+                    if let Ok(day_str) = std::str::from_utf8(&attr.value) {
+                        day_val = day_str
+                            .parse::<u8>()
+                            .ok()
+                            .filter(|&d| (1..=31).contains(&d));
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // If no year attribute, try to get year from text content
+        if year_val.is_none() {
+            let mut local_buf = Vec::new();
+            if let Ok(year) = Self::extract_text(reader, &mut local_buf, b"year")?.parse::<i32>() {
+                year_val = Some(year);
+            }
+        } else {
+            // Still need to consume the text content
+            let mut local_buf = Vec::new();
+            let _ = Self::extract_text(reader, &mut local_buf, b"year")?;
+        }
+
+        Ok((year_val, month_val, day_val))
     }
 
     /// Parse a single record element into a Citation
@@ -166,8 +224,44 @@ impl EndNoteXmlParser {
                         citation.urls.push(url);
                     }
                     b"year" => {
-                        if let Ok(year) = Self::extract_text(reader, buf, b"year")?.parse::<i32>() {
-                            citation.year = Some(year);
+                        let (year_val, month_val, day_val) =
+                            Self::extract_date_from_year_element(reader, e)?;
+                        citation.date = parse_endnote_date(year_val, month_val, day_val);
+                        // For backward compatibility, also set the deprecated year field
+                        #[allow(deprecated)]
+                        {
+                            citation.year = citation.date.year;
+                        }
+                    }
+                    b"dates" => {
+                        // Handle the dates element - we'll look for year sub-element
+                        // This is a more complex structure but we'll process it
+                        loop {
+                            match reader.read_event_into(buf) {
+                                Ok(Event::Start(ref inner_e))
+                                    if inner_e.name() == QName(b"year") =>
+                                {
+                                    // Parse year element within dates
+                                    let (year_val, month_val, day_val) =
+                                        Self::extract_date_from_year_element(reader, inner_e)?;
+                                    citation.date =
+                                        parse_endnote_date(year_val, month_val, day_val);
+                                    // For backward compatibility, also set the deprecated year field
+                                    #[allow(deprecated)]
+                                    {
+                                        citation.year = citation.date.year;
+                                    }
+                                }
+                                Ok(Event::End(ref inner_e))
+                                    if inner_e.name() == QName(b"dates") =>
+                                {
+                                    break
+                                }
+                                Ok(Event::Eof) => break,
+                                Err(e) => return Err(CitationError::from(e)),
+                                _ => continue,
+                            }
+                            buf.clear();
                         }
                     }
                     b"abstract" => {
@@ -259,7 +353,7 @@ mod tests {
         <volume>10</volume>
         <number>2</number>
         <pages>100-110</pages>
-        <year>2023</year>
+        <year year="2023" month="6" day="15">2023</year>
         <electronic-resource-num>10.1000/test</electronic-resource-num>
         <abstract>This is a test abstract.</abstract>
         <keywords><keyword>Test</keyword><keyword>XML</keyword></keywords>
@@ -276,7 +370,9 @@ mod tests {
         assert_eq!(citation.authors[0].family_name, "Smith");
         assert_eq!(citation.authors[1].family_name, "Doe");
         assert_eq!(citation.journal, Some("Test Journal".to_string()));
-        assert_eq!(citation.year, Some(2023));
+        assert_eq!(citation.date.year, Some(2023));
+        assert_eq!(citation.date.month, Some(6));
+        assert_eq!(citation.date.day, Some(15));
         assert_eq!(citation.volume, Some("10".to_string()));
         assert_eq!(citation.issue, Some("2".to_string()));
         assert_eq!(citation.pages, Some("100-110".to_string()));
