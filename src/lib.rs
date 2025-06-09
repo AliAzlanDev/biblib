@@ -141,11 +141,13 @@
 //! All parser implementations are thread-safe and can be shared between threads.
 //! The deduplicator supports parallel processing through the `run_in_parallel` option.
 
+#[cfg(feature = "xml")]
 use quick_xml::events::attributes::AttrError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
 
+#[cfg(feature = "csv")]
 extern crate csv as csv_crate;
 
 #[cfg(feature = "csv")]
@@ -197,18 +199,20 @@ pub enum CitationError {
 }
 
 // Add From implementations for common error types
+#[cfg(feature = "csv")]
 impl From<csv_crate::Error> for CitationError {
     fn from(err: csv_crate::Error) -> Self {
         CitationError::InvalidFormat(err.to_string())
     }
 }
-
+#[cfg(feature = "xml")]
 impl From<quick_xml::Error> for CitationError {
     fn from(err: quick_xml::Error) -> Self {
         CitationError::InvalidFormat(err.to_string())
     }
 }
 
+#[cfg(feature = "xml")]
 impl From<AttrError> for CitationError {
     fn from(err: AttrError) -> Self {
         CitationError::InvalidFormat(err.to_string())
