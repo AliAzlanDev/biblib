@@ -207,7 +207,8 @@ impl CitationParser for PubMedParser {
                             // For backward compatibility, also set the deprecated year field
                             #[allow(deprecated)]
                             {
-                                current_citation.year = current_citation.date.year;
+                                current_citation.year =
+                                    current_citation.date.as_ref().map(|d| d.year);
                             }
                         }
                         "VI" => current_citation.volume = Some(content.to_string()),
@@ -288,9 +289,10 @@ MH- Keyword2
         assert_eq!(citation.title, "Test Article Title");
         assert_eq!(citation.authors.len(), 1);
         assert_eq!(citation.authors[0].family_name, "Smith");
-        assert_eq!(citation.date.year, Some(2023));
-        assert_eq!(citation.date.month, Some(1));
-        assert_eq!(citation.date.day, Some(23));
+        let date = citation.date.as_ref().unwrap();
+        assert_eq!(date.year, 2023);
+        assert_eq!(date.month, Some(1));
+        assert_eq!(date.day, Some(23));
     }
 
     #[test]

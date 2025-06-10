@@ -230,7 +230,7 @@ impl EndNoteXmlParser {
                         // For backward compatibility, also set the deprecated year field
                         #[allow(deprecated)]
                         {
-                            citation.year = citation.date.year;
+                            citation.year = citation.date.as_ref().map(|d| d.year);
                         }
                     }
                     b"dates" => {
@@ -249,7 +249,7 @@ impl EndNoteXmlParser {
                                     // For backward compatibility, also set the deprecated year field
                                     #[allow(deprecated)]
                                     {
-                                        citation.year = citation.date.year;
+                                        citation.year = citation.date.as_ref().map(|d| d.year);
                                     }
                                 }
                                 Ok(Event::End(ref inner_e))
@@ -370,9 +370,10 @@ mod tests {
         assert_eq!(citation.authors[0].family_name, "Smith");
         assert_eq!(citation.authors[1].family_name, "Doe");
         assert_eq!(citation.journal, Some("Test Journal".to_string()));
-        assert_eq!(citation.date.year, Some(2023));
-        assert_eq!(citation.date.month, Some(6));
-        assert_eq!(citation.date.day, Some(15));
+        let date = citation.date.as_ref().unwrap();
+        assert_eq!(date.year, 2023);
+        assert_eq!(date.month, Some(6));
+        assert_eq!(date.day, Some(15));
         assert_eq!(citation.volume, Some("10".to_string()));
         assert_eq!(citation.issue, Some("2".to_string()));
         assert_eq!(citation.pages, Some("100-110".to_string()));

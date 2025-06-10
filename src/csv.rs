@@ -236,7 +236,7 @@ impl CsvParser {
                         // For backward compatibility, also set the deprecated year field
                         #[allow(deprecated)]
                         {
-                            citation.year = citation.date.year;
+                            citation.year = citation.date.as_ref().map(|d| d.year);
                         }
                     }
                     "volume" => citation.volume = Some(value.to_string()),
@@ -325,11 +325,10 @@ Another Paper,\"Doe, Jane\",2022,Another Journal";
 
         let parser = CsvParser::new();
         let citations = parser.parse(input).unwrap();
-
         assert_eq!(citations.len(), 2);
         assert_eq!(citations[0].title, "Test Paper");
         assert_eq!(citations[0].authors[0].family_name, "Smith");
-        assert_eq!(citations[0].date.year, Some(2023));
+        assert_eq!(citations[0].date.as_ref().unwrap().year, 2023);
         assert_eq!(citations[0].journal, Some("Test Journal".to_string()));
     }
 
@@ -348,10 +347,9 @@ Test Paper,Smith J,2023,Test Journal";
 
         let parser = CsvParser::new().with_config(config);
         let citations = parser.parse(input).unwrap();
-
         assert_eq!(citations[0].title, "Test Paper");
         assert_eq!(citations[0].authors[0].family_name, "Smith");
-        assert_eq!(citations[0].date.year, Some(2023));
+        assert_eq!(citations[0].date.as_ref().unwrap().year, 2023);
         assert_eq!(citations[0].journal, Some("Test Journal".to_string()));
     }
 
@@ -378,9 +376,8 @@ Test Paper,\"Smith, John; Doe, Jane\",2023";
 
         let parser = CsvParser::new().with_config(config);
         let citations = parser.parse(input).unwrap();
-
         assert_eq!(citations[0].title, "Test Paper");
         assert_eq!(citations[0].authors[0].family_name, "Smith");
-        assert_eq!(citations[0].date.year, Some(2023));
+        assert_eq!(citations[0].date.as_ref().unwrap().year, 2023);
     }
 }

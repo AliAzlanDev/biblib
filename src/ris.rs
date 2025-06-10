@@ -171,7 +171,8 @@ impl CitationParser for RisParser {
                             // For backward compatibility, also set the deprecated year field
                             #[allow(deprecated)]
                             {
-                                current_citation.year = current_citation.date.year;
+                                current_citation.year =
+                                    current_citation.date.as_ref().map(|d| d.year);
                             }
                         }
                         "VL" => current_citation.volume = Some(content.to_string()),
@@ -276,9 +277,10 @@ ER  -
         assert_eq!(citation.title, "Test Article Title");
         assert_eq!(citation.authors.len(), 1);
         assert_eq!(citation.authors[0].family_name, "Smith");
-        assert_eq!(citation.date.year, Some(2023));
-        assert_eq!(citation.date.month, Some(12));
-        assert_eq!(citation.date.day, Some(25));
+        let date = citation.date.as_ref().unwrap();
+        assert_eq!(date.year, 2023);
+        assert_eq!(date.month, Some(12));
+        assert_eq!(date.day, Some(25));
         assert_eq!(citation.pages, Some("100-110".to_string()));
         assert_eq!(citation.keywords.len(), 2);
     }
@@ -343,10 +345,9 @@ PB  - BMJ Publishing Group
 ER  - 
 
 "#;
-
         let parser = RisParser::new();
         let citations = parser.parse(&input).unwrap();
         assert_eq!(citations.len(), 2, "Expected 2 citations in test.ris");
-        assert_eq!(citations[0].date.year, Some(1998));
+        assert_eq!(citations[0].date.as_ref().unwrap().year, 1998);
     }
 }
