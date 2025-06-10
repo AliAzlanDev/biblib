@@ -106,6 +106,12 @@ impl PubMedParser {
                     }
                 }
             }
+            "TI" => {
+                if !citation.title.is_empty() && !citation.title.ends_with(' ') {
+                    citation.title.push(' ')
+                }
+                citation.title.push_str(content)
+            }
             _ => {
                 if let Some(values) = citation.extra_fields.get_mut(field) {
                     if let Some(last_value) = values.last_mut() {
@@ -405,5 +411,23 @@ AU  - Zhang H
         ));
 
         assert!(PubMedParser::validate_line("Invalid- line", 1).is_err());
+    }
+
+    #[test]
+    fn test_title_continued_line() {
+        let input = r#"PMID- 31181385
+DP  - 2019 Dec
+TI  - Fantastic yeasts and where to find them: the hidden diversity of dimorphic fungal 
+      pathogens.
+FAU - Van Dyke, Marley C Caballero
+AU  - Van Dyke MCC
+"#;
+        let parser = PubMedParser::new();
+        let result = parser.parse(input).unwrap();
+        assert_eq!(result.len(), 1);
+        let citation = &result[0];
+        assert_eq!(citation.pmid.as_deref(), Some("31181385"));
+        assert_eq!(citation.title, "Fantastic yeasts and where to find them: the hidden diversity of dimorphic fungal pathogens.");
+        assert_eq!(citation.authors.len(), 1);
     }
 }
