@@ -91,10 +91,11 @@ impl PubMedParser {
         match field {
             "FAU" => citation.authors.push(Self::parse_author(content)),
             "AB" => {
-                citation
-                    .abstract_text
-                    .get_or_insert_with(String::new)
-                    .push_str(content);
+                let abstract_text = citation.abstract_text.get_or_insert_with(String::new);
+                if !abstract_text.is_empty() && !abstract_text.ends_with(char::is_whitespace) && !abstract_text.ends_with('-') {
+                    abstract_text.push(' ');
+                }
+                abstract_text.push_str(content);
             }
             "AD" => {
                 if let Some(last_author) = citation.authors.last_mut() {
@@ -107,7 +108,7 @@ impl PubMedParser {
                 }
             }
             "TI" => {
-                if !citation.title.is_empty() && !citation.title.ends_with(' ') {
+                if !citation.title.is_empty() && !citation.title.ends_with(char::is_whitespace) && !citation.title.ends_with('-') {
                     citation.title.push(' ')
                 }
                 citation.title.push_str(content)
@@ -414,11 +415,13 @@ AU  - Zhang H
     }
 
     #[test]
-    fn test_title_continued_line() {
+    fn test_continued_line() {
         let input = r#"PMID- 31181385
 DP  - 2019 Dec
 TI  - Fantastic yeasts and where to find them: the hidden diversity of dimorphic fungal 
       pathogens.
+AB  - This is a long abstract that spans
+      multiple lines for testing purposes.
 FAU - Van Dyke, Marley C Caballero
 AU  - Van Dyke MCC
 "#;
@@ -428,6 +431,23 @@ AU  - Van Dyke MCC
         let citation = &result[0];
         assert_eq!(citation.pmid.as_deref(), Some("31181385"));
         assert_eq!(citation.title, "Fantastic yeasts and where to find them: the hidden diversity of dimorphic fungal pathogens.");
+        assert_eq!(result[0].abstract_text.as_deref(), Some("This is a long abstract that spans multiple lines for testing purposes."));
         assert_eq!(citation.authors.len(), 1);
+    }
+
+    #[test]
+    fn test_hyphenated_continuation() {
+        let input = r#"PMID- 12345678
+TI  - Self-
+      assembled structures
+AB  - Self-
+      assembled structures are important.
+FAU - Smith, John
+
+"#;
+        let parser = PubMedParser::new();
+        let result = parser.parse(input).unwrap();
+        assert_eq!(result[0].title, "Self-assembled structures");
+        assert_eq!(result[0].abstract_text.as_deref(), Some("Self-assembled structures are important."));
     }
 }
