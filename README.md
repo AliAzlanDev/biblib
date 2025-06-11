@@ -211,5 +211,5 @@ This crate is under active. There may be some breaking changes.
 ## Support
 
 - Documentation: [docs.rs](https://docs.rs/biblib)
-- Issues: [GitHub Issues](https://github.com/aliazlanpro/biblib/issues)
-- Discussions: [GitHub Discussions](https://github.com/aliazlanpro/biblib/discussions)
+- Issues: [GitHub Issues](https://github.com/AliAzlanDev/biblib/issues)
+- Discussions: [GitHub Discussions](https://github.com/AliAzlanDev/biblib/discussions)
