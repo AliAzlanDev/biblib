@@ -21,6 +21,9 @@
 //! assert_eq!(citations[0].source.as_deref(), Some("PubMed"));
 //! ```
 
+mod parse;
+mod tags;
+
 use crate::utils::{format_doi, format_page_numbers, parse_author_name};
 use crate::{Author, Citation, CitationError, CitationParser, Result};
 use nanoid::nanoid;
