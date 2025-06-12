@@ -5,57 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0] - 2025-06-10
-
-### Added
-
-- **New `Date` struct**: Comprehensive date support with required year and optional month/day fields
-- **Enhanced date parsing**: Support for complex date formats across all parsers:
-  - PubMed: "2020 Jun 9", "2023 May 30", "2023 Jan 3", "2023"
-  - RIS: "1999/12/25/Christmas edition", "2023/05/30", "2023", "2023//"
-  - EndNote XML: Support for year, month, day attributes in XML elements
-  - CSV: Year-only parsing with fallback support
-
-### Changed
-
-- **BREAKING**: Citations now use `date: Option<Date>` field instead of `year: Option<i32>`
-- **BREAKING**: Deduplicator now uses `date.as_ref().map(|d| d.year)` for year-based grouping
-- All parsers updated to populate the new `date` field with complete date information
-- Backward compatibility maintained through deprecated `year` field
+## [0.2.4] - 2025-06-11
 
 ### Fixed
 
-- Fixed line continuation handling of `TI` and `AB` fields in PubMed parser
-
-### Deprecated
-
-- `Citation.year` field is now deprecated in favor of `Citation.date.as_ref().map(|d| d.year)`
-- Will be removed in version 0.4.0
-
-### Migration Guide
-
-Replace `citation.year` with `citation.date` access patterns in your code:
-
-```rust
-// Old
-if let Some(year) = citation.year {
-    println!("Published in {}", year);
-}
-
-// New - Citations may or may not have a date
-match &citation.date {
-    Some(date) => {
-        println!("Published in {}", date.year); // year is always present
-        if let Some(month) = date.month {
-            println!("Month: {}", month);
-        }
-        if let Some(day) = date.day {
-            println!("Day: {}", day);
-        }
-    }
-    None => println!("No publication date available"),
-}
-```
+- Fixed the line continuation for `TI` and `AB` tags in PubMed parser to handle cases where these tags are split across multiple lines
 
 ## [0.2.3] - 2025-06-09
 
