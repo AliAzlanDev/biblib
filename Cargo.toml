@@ -5,10 +5,10 @@ edition = "2021"
 description = "Parse, manage, and deduplicate academic citations"
 authors = ["Ali Azlan <aliazlanofficial@gmail.com>"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/aliazlanpro/biblib"
+repository = "https://github.com/AliAzlanDev/biblib"
 documentation = "https://docs.rs/biblib"
 readme = "README.md"
-keywords = ["citations", "deduplication", "academic", "doi", "bibliography"]
+keywords = ["citations", "deduplication", "nbib", "doi", "bibliography"]
 categories = ["science", "text-processing"]
 
 [features]
