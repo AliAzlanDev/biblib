@@ -1,3 +1,4 @@
+use crate::Date;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
@@ -165,6 +166,157 @@ pub fn parse_author_name(name: &str) -> (String, String) {
     }
 }
 
+/// Parses PubMed format dates (e.g., "2020 Jun 9", "2023 May 30", "2023 Jan 3", "2023")
+///
+/// # Arguments
+///
+/// * `date_str` - The date string to parse
+pub fn parse_pubmed_date(date_str: &str) -> Option<Date> {
+    let date_str = date_str.trim();
+
+    if date_str.is_empty() {
+        return None;
+    }
+
+    // Split the date string into parts
+    let parts: Vec<&str> = date_str.split_whitespace().collect();
+
+    // First part should be year
+    let year = if let Some(year_str) = parts.first() {
+        year_str.parse::<i32>().ok()?
+    } else {
+        return None;
+    };
+
+    let mut month = None;
+    let mut day = None;
+
+    // Second part should be month (if present)
+    if let Some(month_str) = parts.get(1) {
+        month = parse_month_name(month_str);
+    }
+
+    // Third part should be day (if present)
+    if let Some(day_str) = parts.get(2) {
+        if let Ok(parsed_day) = day_str.parse::<u8>() {
+            if (1..=31).contains(&parsed_day) {
+                day = Some(parsed_day);
+            }
+        }
+    }
+
+    Some(Date { year, month, day })
+}
+
+/// Parses RIS format dates (e.g., "1999/12/25/Christmas edition", "2023/05/30", "2023")
+///
+/// # Arguments
+///
+/// * `date_str` - The date string to parse
+pub fn parse_ris_date(date_str: &str) -> Option<Date> {
+    let date_str = date_str.trim();
+
+    if date_str.is_empty() {
+        return None;
+    }
+
+    // Split by '/' and take first 3 parts (year/month/day)
+    let parts: Vec<&str> = date_str.split('/').collect();
+
+    // First part should be year
+    let year = if let Some(year_str) = parts.first() {
+        if !year_str.is_empty() {
+            year_str.parse::<i32>().ok()?
+        } else {
+            return None;
+        }
+    } else {
+        return None;
+    };
+
+    let mut month = None;
+    let mut day = None;
+
+    // Second part should be month (if present and not empty)
+    if let Some(month_str) = parts.get(1) {
+        if !month_str.is_empty() {
+            if let Ok(parsed_month) = month_str.parse::<u8>() {
+                if (1..=12).contains(&parsed_month) {
+                    month = Some(parsed_month);
+                }
+            }
+        }
+    }
+
+    // Third part should be day (if present and not empty)
+    if let Some(day_str) = parts.get(2) {
+        if !day_str.is_empty() {
+            if let Ok(parsed_day) = day_str.parse::<u8>() {
+                if (1..=31).contains(&parsed_day) {
+                    day = Some(parsed_day);
+                }
+            }
+        }
+    }
+
+    Some(Date { year, month, day })
+}
+
+/// Parses EndNote XML format dates from year attributes
+///
+/// # Arguments
+///
+/// * `year` - Year value
+/// * `month` - Month value (optional)
+/// * `day` - Day value (optional)
+pub fn parse_endnote_date(year: Option<i32>, month: Option<u8>, day: Option<u8>) -> Option<Date> {
+    let year = year?;
+    Some(Date { year, month, day })
+}
+
+/// Parses a simple year string into a Date
+///
+/// # Arguments
+///
+/// * `year_str` - The year string to parse
+pub fn parse_year_only(year_str: &str) -> Option<Date> {
+    let year_str = year_str.trim();
+
+    if year_str.is_empty() {
+        return None;
+    }
+
+    // Handle cases like "2023/" or "2023//"
+    let year_part = year_str.split('/').next().unwrap_or(year_str);
+
+    let year = year_part.parse::<i32>().ok()?;
+
+    Some(Date {
+        year,
+        month: None,
+        day: None,
+    })
+}
+
+/// Helper function to parse month names to month numbers
+fn parse_month_name(month_str: &str) -> Option<u8> {
+    match month_str.to_lowercase().as_str() {
+        "jan" | "january" => Some(1),
+        "feb" | "february" => Some(2),
+        "mar" | "march" => Some(3),
+        "apr" | "april" => Some(4),
+        "may" => Some(5),
+        "jun" | "june" => Some(6),
+        "jul" | "july" => Some(7),
+        "aug" | "august" => Some(8),
+        "sep" | "september" => Some(9),
+        "oct" | "october" => Some(10),
+        "nov" | "november" => Some(11),
+        "dec" | "december" => Some(12),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -321,5 +473,117 @@ mod tests {
 
         // Test empty page_str
         assert_eq!(split_issns(""), Vec::<String>::new());
+    }
+    #[test]
+    fn test_parse_pubmed_date() {
+        // Test full date
+        let date = parse_pubmed_date("2020 Jun 9").unwrap();
+        assert_eq!(date.year, 2020);
+        assert_eq!(date.month, Some(6));
+        assert_eq!(date.day, Some(9));
+
+        // Test year and month only
+        let date = parse_pubmed_date("2023 May").unwrap();
+        assert_eq!(date.year, 2023);
+        assert_eq!(date.month, Some(5));
+        assert_eq!(date.day, None);
+
+        // Test year only
+        let date = parse_pubmed_date("2023").unwrap();
+        assert_eq!(date.year, 2023);
+        assert_eq!(date.month, None);
+        assert_eq!(date.day, None);
+
+        // Test empty string
+        let date = parse_pubmed_date("");
+        assert!(date.is_none());
+    }
+    #[test]
+    fn test_parse_ris_date() {
+        // Test full date
+        let date = parse_ris_date("1999/12/25/Christmas edition").unwrap();
+        assert_eq!(date.year, 1999);
+        assert_eq!(date.month, Some(12));
+        assert_eq!(date.day, Some(25));
+
+        // Test year and month only
+        let date = parse_ris_date("2023/05").unwrap();
+        assert_eq!(date.year, 2023);
+        assert_eq!(date.month, Some(5));
+        assert_eq!(date.day, None);
+
+        // Test year only
+        let date = parse_ris_date("2023").unwrap();
+        assert_eq!(date.year, 2023);
+        assert_eq!(date.month, None);
+        assert_eq!(date.day, None);
+
+        // Test with empty parts
+        let date = parse_ris_date("2023//").unwrap();
+        assert_eq!(date.year, 2023);
+        assert_eq!(date.month, None);
+        assert_eq!(date.day, None);
+
+        // Test empty string
+        let date = parse_ris_date("");
+        assert!(date.is_none());
+    }
+
+    #[test]
+    fn test_parse_endnote_date() {
+        // Add tests for EndNote date parsing
+        let test_cases = vec![
+            (
+                Some(2023),
+                Some(5),
+                Some(30),
+                Some(Date {
+                    year: 2023,
+                    month: Some(5),
+                    day: Some(30),
+                }),
+            ),
+            (
+                Some(2023),
+                None,
+                None,
+                Some(Date {
+                    year: 2023,
+                    month: None,
+                    day: None,
+                }),
+            ),
+            (None, Some(12), Some(25), None),
+        ];
+
+        for (year, month, day, expected) in test_cases {
+            assert_eq!(parse_endnote_date(year, month, day), expected);
+        }
+    }
+
+    #[test]
+    fn test_parse_year_only() {
+        let date = parse_year_only("2023").unwrap();
+        assert_eq!(date.year, 2023);
+        assert_eq!(date.month, None);
+        assert_eq!(date.day, None);
+
+        let date = parse_year_only("2023/").unwrap();
+        assert_eq!(date.year, 2023);
+        assert_eq!(date.month, None);
+        assert_eq!(date.day, None);
+
+        let date = parse_year_only(""); // Test empty string
+
+        assert!(date.is_none());
+    }
+
+    #[test]
+    fn test_parse_month_name() {
+        assert_eq!(parse_month_name("Jan"), Some(1));
+        assert_eq!(parse_month_name("january"), Some(1));
+        assert_eq!(parse_month_name("Feb"), Some(2));
+        assert_eq!(parse_month_name("december"), Some(12));
+        assert_eq!(parse_month_name("invalid"), None);
     }
 }

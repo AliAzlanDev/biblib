@@ -24,7 +24,7 @@
 mod parse;
 mod tags;
 
-use crate::utils::{format_doi, format_page_numbers, parse_author_name};
+use crate::utils::{format_doi, format_page_numbers, parse_author_name, parse_pubmed_date};
 use crate::{Author, Citation, CitationError, CitationParser, Result};
 use nanoid::nanoid;
 
@@ -213,13 +213,12 @@ impl CitationParser for PubMedParser {
                         "JT" => current_citation.journal = Some(content.to_string()),
                         "TA" => current_citation.journal_abbr = Some(content.to_string()),
                         "DP" => {
-                            if let Ok(year) = content
-                                .split_whitespace()
-                                .next()
-                                .unwrap_or("0")
-                                .parse::<i32>()
+                            current_citation.date = parse_pubmed_date(content);
+                            // For backward compatibility, also set the deprecated year field
+                            #[allow(deprecated)]
                             {
-                                current_citation.year = Some(year);
+                                current_citation.year =
+                                    current_citation.date.as_ref().map(|d| d.year);
                             }
                         }
                         "VI" => current_citation.volume = Some(content.to_string()),
@@ -282,7 +281,7 @@ mod tests {
 TI- Test Article Title
 FAU- Smith, John
 JT- Test Journal
-DP- 2023 Jan
+DP- 2023 Jan 23
 VI- 10
 IP- 2
 PG- 100-110
@@ -300,7 +299,10 @@ MH- Keyword2
         assert_eq!(citation.title, "Test Article Title");
         assert_eq!(citation.authors.len(), 1);
         assert_eq!(citation.authors[0].family_name, "Smith");
-        assert_eq!(citation.year, Some(2023));
+        let date = citation.date.as_ref().unwrap();
+        assert_eq!(date.year, 2023);
+        assert_eq!(date.month, Some(1));
+        assert_eq!(date.day, Some(23));
     }
 
     #[test]
