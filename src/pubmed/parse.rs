@@ -1,26 +1,37 @@
+use crate::pubmed::author::{resolve_authors, ConsecutiveTag};
 use crate::pubmed::tags::PubmedTag;
 use either::{Either, Left, Right};
 use itertools::Itertools;
 use std::collections::HashMap;
-use std::hash::Hash;
 
 /// Parse the content of a PubMed formatted .nbib file, returning its key-value pairs
 /// in a [HashMap] (with the order of duplicate values preserved in the [Vec] values)
 /// alongside any unparsable lines.
-pub fn pubmed_parse(nbib_text: String) -> (HashMap<PubmedTag, Vec<String>>, Vec<String>) {
+pub fn pubmed_parse(nbib_text: String) {
     let (ignored_lines, pairs): (Vec<_>, Vec<_>) =
         WholeLinesIter::new(nbib_text.split('\n')).partition_map(parse_complete_entry);
-    (collect_to_map(pairs), ignored_lines)
+    let (pairs, others) = separate_stateless_entries(pairs);
+    let authors = resolve_authors(others);
+    todo!()
 }
 
-/// Collect a [Vec] as a [HashMap], but keeping duplicates and retaining their order.
-fn collect_to_map<K: Eq + Hash, V>(v: Vec<(K, V)>) -> HashMap<K, Vec<V>> {
+/// Collect the data: tags which can be parsed statelessly are stored in a [HashMap],
+/// with duplicates kept in a [Vec] with order preserved, while other tags that require
+/// context to parse are stored in a vec with order preserved.
+fn separate_stateless_entries<V>(
+    v: Vec<(PubmedTag, V)>,
+) -> (HashMap<PubmedTag, Vec<V>>, Vec<(ConsecutiveTag, V)>) {
     let mut map = HashMap::with_capacity(v.len());
+    let mut other = Vec::with_capacity(v.len());
     for (k, v) in v {
-        let bucket = map.entry(k).or_insert_with(Vec::new);
-        bucket.push(v);
+        if let Some(tag) = ConsecutiveTag::from_tag(k) {
+            other.push((tag, v))
+        } else {
+            let bucket = map.entry(k).or_insert_with(Vec::new);
+            bucket.push(v);
+        }
     }
-    map
+    (map, other)
 }
 
 /// Parse the string as a key-value pair from a PubMed formatted .nbib file.
@@ -105,11 +116,7 @@ impl<'a, I: Iterator<Item = &'a str>> Iterator for WholeLinesIter<'a, I> {
     type Item = String;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(current) = self.current {
-            Some(self.consume_complete_value(current))
-        } else {
-            None
-        }
+        self.current.map(|x| self.consume_complete_value(x))
     }
 }
 

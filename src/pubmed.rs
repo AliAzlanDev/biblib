@@ -21,6 +21,7 @@
 //! assert_eq!(citations[0].source.as_deref(), Some("PubMed"));
 //! ```
 
+mod author;
 mod parse;
 mod tags;
 
