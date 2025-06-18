@@ -62,7 +62,7 @@ const DEFAULT_HEADERS: &[(&str, &[&str])] = &[
 /// - "title" → ["title", "article title", "publication title"]
 /// - "authors" → ["author", "authors", "creator", "creators"]
 /// - "year" → ["year", "publication year", "pub year"]
-/// etc.
+///   etc.
 ///
 /// # Examples
 ///
@@ -203,8 +203,10 @@ impl CsvParser {
 
     /// Parses a record into a Citation using the current header mapping
     fn parse_record(&self, headers: &[String], record: StringRecord) -> Result<Citation> {
-        let mut citation = Citation::default();
-        citation.source = self.source.clone(); // Add source if provided
+        let mut citation = Citation {
+            source: self.source.clone(),
+            ..Default::default()
+        };
         let mut has_id = false;
 
         for (i, value) in record.iter().enumerate() {

@@ -152,8 +152,11 @@ impl EndNoteXmlParser {
         reader: &mut Reader<B>,
         buf: &mut Vec<u8>,
     ) -> Result<Citation> {
-        let mut citation = Citation::default();
-        citation.id = nanoid!();
+        let mut citation = Citation {
+            id: nanoid!(),
+            source: self.source.clone(),
+            ..Default::default()
+        };
         citation.citation_type.push("Journal Article".to_string()); // Set default type
         citation.source = self.source.clone(); // Now we can access self.source
 

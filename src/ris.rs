@@ -121,8 +121,11 @@ impl CitationParser for RisParser {
         }
 
         let mut citations = Vec::new();
-        let mut current_citation = Citation::default();
-        current_citation.id = nanoid!();
+        let mut current_citation = Citation {
+            id: nanoid!(),
+            source: self.source.clone(),
+            ..Default::default()
+        };
         current_citation.source = self.source.clone(); // Add source if provided
         let mut start_page = String::new();
 
@@ -180,7 +183,7 @@ impl CitationParser for RisParser {
                         "SP" => {
                             start_page = content.to_string();
                             // Set pages immediately for single page citations
-                            current_citation.pages = Some(format_page_numbers(&content));
+                            current_citation.pages = Some(format_page_numbers(content));
                         }
                         "EP" => {
                             let page_str = if !start_page.is_empty() {

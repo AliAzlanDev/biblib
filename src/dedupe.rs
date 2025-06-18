@@ -368,7 +368,7 @@ impl Deduplicator {
             for preferred_source in &self.config.source_preferences {
                 if let Some(citation) = citations
                     .iter()
-                    .find(|c| c.source.as_ref().map_or(false, |s| s == preferred_source))
+                    .find(|c| c.source.as_ref() == Some(preferred_source))
                 {
                     return citation;
                 }
@@ -388,7 +388,7 @@ impl Deduplicator {
                 // Multiple abstracts, prefer ones with DOI
                 let with_doi = citations_with_abstract
                     .iter()
-                    .find(|c| c.doi.as_ref().map_or(false, |d| !d.is_empty()));
+                    .find(|c| c.doi.as_ref().is_some_and(|d| !d.is_empty()));
 
                 with_doi.copied().unwrap_or(citations_with_abstract[0])
             }
@@ -437,12 +437,10 @@ impl Deduplicator {
             let mut group_citations = vec![preprocessed[i].original];
             let current = &preprocessed[i];
 
-            for j in 0..preprocessed.len() {
-                if i == j || processed_ids.contains(&preprocessed[j].original.id) {
+            for (j, other) in preprocessed.iter().enumerate() {
+                if i == j || processed_ids.contains(&other.original.id) {
                     continue;
                 }
-
-                let other = &preprocessed[j];
 
                 let journal_match = Self::journals_match(
                     &current.normalized_journal,
@@ -498,7 +496,7 @@ impl Deduplicator {
                 let duplicates: Vec<Citation> = group_citations
                     .into_iter()
                     .filter(|c| c.id != unique.id)
-                    .map(|c| c.clone())
+                    .cloned()
                     .collect();
 
                 duplicate_groups.push(DuplicateGroup {
@@ -594,19 +592,19 @@ impl Deduplicator {
         journal1
             .as_ref()
             .zip(journal2.as_ref())
-            .map_or(false, |(j1, j2)| j1 == j2)
+            .is_some_and(|(j1, j2)| j1 == j2)
             || journal_abbr1
                 .as_ref()
                 .zip(journal_abbr2.as_ref())
-                .map_or(false, |(a1, a2)| a1 == a2)
+                .is_some_and(|(a1, a2)| a1 == a2)
             || journal1
                 .as_ref()
                 .zip(journal_abbr2.as_ref())
-                .map_or(false, |(j1, a2)| j1 == a2)
+                .is_some_and(|(j1, a2)| j1 == a2)
             || journal_abbr1
                 .as_ref()
                 .zip(journal2.as_ref())
-                .map_or(false, |(a1, j2)| a1 == j2)
+                .is_some_and(|(a1, j2)| a1 == j2)
     }
 
     fn format_journal_name(full_name: Option<&str>) -> Option<String> {
@@ -648,7 +646,7 @@ impl Deduplicator {
         }
     }
 
-    fn match_issns(list1: &Vec<String>, list2: &Vec<String>) -> bool {
+    fn match_issns(list1: &[String], list2: &[String]) -> bool {
         list1
             .iter()
             .any(|isbn1| list2.iter().any(|isbn2| isbn1 == isbn2))

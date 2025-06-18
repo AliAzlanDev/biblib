@@ -33,15 +33,9 @@ use nanoid::nanoid;
 ///
 /// PubMed format is commonly used by PubMed and the National Library of Medicine
 /// for bibliographic citations.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PubMedParser {
     source: Option<String>,
-}
-
-impl Default for PubMedParser {
-    fn default() -> Self {
-        Self { source: None }
-    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -96,7 +90,10 @@ impl PubMedParser {
             "FAU" => citation.authors.push(Self::parse_author(content)),
             "AB" => {
                 let abstract_text = citation.abstract_text.get_or_insert_with(String::new);
-                if !abstract_text.is_empty() && !abstract_text.ends_with(char::is_whitespace) && !abstract_text.ends_with('-') {
+                if !abstract_text.is_empty()
+                    && !abstract_text.ends_with(char::is_whitespace)
+                    && !abstract_text.ends_with('-')
+                {
                     abstract_text.push(' ');
                 }
                 abstract_text.push_str(content);
@@ -112,7 +109,10 @@ impl PubMedParser {
                 }
             }
             "TI" => {
-                if !citation.title.is_empty() && !citation.title.ends_with(char::is_whitespace) && !citation.title.ends_with('-') {
+                if !citation.title.is_empty()
+                    && !citation.title.ends_with(char::is_whitespace)
+                    && !citation.title.ends_with('-')
+                {
                     citation.title.push(' ')
                 }
                 citation.title.push_str(content)
@@ -179,8 +179,11 @@ impl CitationParser for PubMedParser {
         }
 
         let mut citations = Vec::new();
-        let mut current_citation = Citation::default();
-        current_citation.id = nanoid!();
+        let mut current_citation = Citation {
+            id: nanoid!(),
+            source: self.source.clone(),
+            ..Default::default()
+        };
         current_citation.source = self.source.clone(); // Add source if provided
         let mut current_field = String::new();
         let mut temp_au_authors: Vec<Author> = Vec::new();
@@ -437,7 +440,10 @@ AU  - Van Dyke MCC
         let citation = &result[0];
         assert_eq!(citation.pmid.as_deref(), Some("31181385"));
         assert_eq!(citation.title, "Fantastic yeasts and where to find them: the hidden diversity of dimorphic fungal pathogens.");
-        assert_eq!(result[0].abstract_text.as_deref(), Some("This is a long abstract that spans multiple lines for testing purposes."));
+        assert_eq!(
+            result[0].abstract_text.as_deref(),
+            Some("This is a long abstract that spans multiple lines for testing purposes.")
+        );
         assert_eq!(citation.authors.len(), 1);
     }
 
@@ -454,6 +460,9 @@ FAU - Smith, John
         let parser = PubMedParser::new();
         let result = parser.parse(input).unwrap();
         assert_eq!(result[0].title, "Self-assembled structures");
-        assert_eq!(result[0].abstract_text.as_deref(), Some("Self-assembled structures are important."));
+        assert_eq!(
+            result[0].abstract_text.as_deref(),
+            Some("Self-assembled structures are important.")
+        );
     }
 }
