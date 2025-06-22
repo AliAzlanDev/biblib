@@ -1,23 +1,36 @@
 use crate::pubmed::author::{resolve_authors, ConsecutiveTag};
+use crate::pubmed::structure::RawPubmedData;
 use crate::pubmed::tags::PubmedTag;
 use either::{Either, Left, Right};
 use itertools::Itertools;
 use std::collections::HashMap;
+use std::ops::Add;
 
 /// Parse the content of a PubMed formatted .nbib file, returning its key-value pairs
 /// in a [HashMap] (with the order of duplicate values preserved in the [Vec] values)
 /// alongside any unparsable lines.
-pub fn pubmed_parse(nbib_text: String) {
-    let (ignored_lines, pairs): (Vec<_>, Vec<_>) =
-        WholeLinesIter::new(nbib_text.split('\n')).partition_map(parse_complete_entry);
-    let (pairs, others) = separate_stateless_entries(pairs);
-    let authors = resolve_authors(others);
-    todo!()
+pub fn pubmed_parse<S: AsRef<str>>(nbib_text: S) -> RawPubmedData {
+    let text = nbib_text.as_ref();
+    let (mut ignored_lines, pairs): (Vec<_>, Vec<_>) =
+        WholeLinesIter::new(text.split('\n')).partition_map(parse_complete_entry);
+    let (data, others) = separate_stateless_entries(pairs);
+    let (authors, leading_affiliations) = resolve_authors(others);
+    ignored_lines.extend(
+        leading_affiliations
+            .into_iter()
+            .map(|s| format!("AD - {s}")),
+    );
+    RawPubmedData {
+        data,
+        authors,
+        ignored_lines,
+    }
 }
 
 /// Collect the data: tags which can be parsed statelessly are stored in a [HashMap],
 /// with duplicates kept in a [Vec] with order preserved, while other tags that require
 /// context to parse are stored in a vec with order preserved.
+#[allow(clippy::type_complexity)]
 fn separate_stateless_entries<V>(
     v: Vec<(PubmedTag, V)>,
 ) -> (HashMap<PubmedTag, Vec<V>>, Vec<(ConsecutiveTag, V)>) {
@@ -108,8 +121,20 @@ impl<'a, I: Iterator<Item = &'a str>> WholeLinesIter<'a, I> {
                 break;
             }
         }
-        value.join(" ")
+        join_lines(value)
     }
+}
+
+/// Join strings on space, except for hyphen-terminated or blank items which are joined without a space.
+fn join_lines(v: Vec<&str>) -> String {
+    v.into_iter().fold(String::new(), |acc, e| {
+        if acc.ends_with('-') || acc.ends_with(' ') || acc.is_empty() {
+            acc
+        } else {
+            acc.add(" ")
+        }
+        .add(e)
+    })
 }
 
 impl<'a, I: Iterator<Item = &'a str>> Iterator for WholeLinesIter<'a, I> {
@@ -136,6 +161,11 @@ FOO - bar
 LONG- I am a very long line containing so
       much text that there is a line break"#,
 &["PMID- 123456", "FOO - bar", "LONG- I am a very long line containing so much text that there is a line break"])]
+    #[
+    case(r#"PMID- 123456
+LONG- Self-
+      assembled structures are important"#,
+&["PMID- 123456", "LONG- Self-assembled structures are important"])]
     #[
     case(r#"PMID- 123456
 FOO - bar

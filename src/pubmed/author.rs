@@ -48,6 +48,17 @@ impl AuthorName {
         }
     }
 
+    /// Get the author's given names as a space-separated string if possible,
+    /// otherwise return their first initials.
+    pub(crate) fn given_name(&self) -> Option<&str> {
+        if self.full {
+            self.name.split_once(", ").map(|(_, r)| r)
+        } else {
+            self.name.rsplit_once(' ').map(|(_, r)| r)
+        }
+    }
+
+    // not used, consider deleting?
     /// Get the name as an `AU`.
     pub fn as_au(&self) -> Cow<str> {
         if self.full {
@@ -126,8 +137,8 @@ impl ConsecutiveTag {
 /// Details about an author from a PubMed formatted citation.
 #[derive(Debug, PartialEq)]
 pub(crate) struct PubmedAuthor {
-    name: AuthorName,
-    affiliations: Vec<String>,
+    pub(crate) name: AuthorName,
+    pub(crate) affiliations: Vec<String>,
 }
 
 impl PubmedAuthor {
@@ -185,35 +196,58 @@ pub(crate) fn resolve_authors(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rstest::*;
     use pretty_assertions::assert_eq;
+    use rstest::*;
 
     #[rstest]
-    #[case("", "", "", "")]
-    #[case("Archimedes", "Archimedes", "Archimedes", "")]
-    #[case("Einstein A", "Einstein, Albert", "Einstein", "A")]
-    #[case("Newton I", "Newton, Issac", "Newton", "I")]
-    #[case("Watson JD", "Watson, James D", "Watson", "JD")]
-    #[case("Watson JD", "Watson, James Dewey", "Watson", "JD")]
-    #[case("Crick FH", "Crick, Francis H", "Crick", "FH")]
-    #[case("Crick FHC", "Crick, Francis Harry Compton", "Crick", "FHC")]
+    #[case("", "", "", "", None)]
+    #[case("Archimedes", "Archimedes", "Archimedes", "", None)]
+    #[case("Einstein A", "Einstein, Albert", "Einstein", "A", Some("Albert"))]
+    #[case("Newton I", "Newton, Issac", "Newton", "I", Some("Issac"))]
+    #[case("Watson JD", "Watson, James D", "Watson", "JD", Some("James D"))]
+    #[case(
+        "Watson JD",
+        "Watson, James Dewey",
+        "Watson",
+        "JD",
+        Some("James Dewey")
+    )]
+    #[case("Crick FH", "Crick, Francis H", "Crick", "FH", Some("Francis H"))]
+    #[case(
+        "Crick FHC",
+        "Crick, Francis Harry Compton",
+        "Crick",
+        "FHC",
+        Some("Francis Harry Compton")
+    )]
     // Complicated name from https://pubmed.ncbi.nlm.nih.gov/27206507/
-    #[case("van der Valk JPM", "van der Valk, J P M", "van der Valk", "JPM")]
+    #[case(
+        "van der Valk JPM",
+        "van der Valk, J P M",
+        "van der Valk",
+        "JPM",
+        Some("J P M")
+    )]
     fn test_author_name(
         #[case] au: &str,
         #[case] fau: &str,
         #[case] last_name: &str,
         #[case] initials: &str,
+        #[case] given_name: Option<&str>,
     ) {
         let full = AuthorName::fau(fau.to_string());
         assert_eq!(full.last_name(), last_name);
         assert_eq!(full.first_initials(), initials);
         assert_eq!(full.as_au(), au);
+        assert_eq!(full.given_name(), given_name);
 
         let short = AuthorName::au(au.to_string());
         assert_eq!(short.last_name(), last_name);
         assert_eq!(short.first_initials(), initials);
         assert_eq!(short.as_au(), au);
+        if given_name.is_some() {
+            assert_eq!(short.given_name(), Some(initials));
+        }
     }
 
     #[rstest]
