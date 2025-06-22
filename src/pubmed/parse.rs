@@ -11,8 +11,9 @@ use std::ops::Add;
 /// alongside any unparsable lines.
 pub fn pubmed_parse<S: AsRef<str>>(nbib_text: S) -> RawPubmedData {
     let text = nbib_text.as_ref();
+    let line_break = if text.contains("\r\n") { "\r\n" } else { "\n" };
     let (mut ignored_lines, pairs): (Vec<_>, Vec<_>) =
-        WholeLinesIter::new(text.split('\n')).partition_map(parse_complete_entry);
+        WholeLinesIter::new(text.split(line_break)).partition_map(parse_complete_entry);
     let (data, others) = separate_stateless_entries(pairs);
     let (authors, leading_affiliations) = resolve_authors(others);
     ignored_lines.extend(

@@ -212,6 +212,19 @@ AU  - Zhang H
     }
 
     #[test]
+    fn test_crlf_endings() {
+        let input = "PMID- 123\r\nTI- Windows\r\nFAU- Gates, Bill\r\nFAU- Cutler, Dave";
+        let parser = PubMedParser::new();
+        let result = parser.parse(input).unwrap();
+        assert_eq!(result[0].pmid.as_deref(), Some("123"));
+        assert_eq!(result[0].title, "Windows");
+        assert_eq!(result[0].authors[0].given_name, "Bill");
+        assert_eq!(result[0].authors[0].family_name, "Gates");
+        assert_eq!(result[0].authors[1].given_name, "Dave");
+        assert_eq!(result[0].authors[1].family_name, "Cutler");
+    }
+
+    #[test]
     fn test_continued_line() {
         let input = r#"PMID- 31181385
 DP  - 2019 Dec
