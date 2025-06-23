@@ -13,12 +13,10 @@
 //!
 //! "#;
 //!
-//! let parser = PubMedParser::new()
-//!     .with_source("PubMed");
+//! let parser = PubMedParser::new();
 //!     
 //! let citations = parser.parse(input).unwrap();
 //! assert_eq!(citations[0].title, "Example Title");
-//! assert_eq!(citations[0].source.as_deref(), Some("PubMed"));
 //! ```
 
 mod author;

@@ -51,6 +51,7 @@ impl TryFrom<RawPubmedData> for crate::Citation {
             journal_abbr: data
                 .remove(&PubmedTag::JournalTitleAbbreviation)
                 .and_then(join_if_some),
+            #[allow(deprecated)]
             year: date.as_ref().map(|d| d.year),
             date,
             volume: data.remove(&PubmedTag::Volume).and_then(join_if_some),
