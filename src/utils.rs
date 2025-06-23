@@ -1,12 +1,12 @@
 use crate::Date;
-use once_cell::sync::Lazy;
-use regex::Regex;
+use crate::regex::Regex;
+use std::sync::LazyLock;
 
-static DOI_URL_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^https?://(?:dx\.)?doi\.org/(.+)$").unwrap());
+static DOI_URL_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^https?://(?:dx\.)?doi\.org/(.+)$").unwrap());
 
-static ISSN_SPLIT_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"\d{4}-\d{3}[\dX](?:\s*\([^)]+\))?").unwrap());
+static ISSN_SPLIT_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\d{4}-\d{3}[\dX](?:\s*\([^)]+\))?").unwrap());
 
 /// Formats page numbers consistently, handling partial end page numbers
 ///

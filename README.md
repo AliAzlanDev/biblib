@@ -48,6 +48,14 @@ A comprehensive Rust library for parsing, managing, and deduplicating academic c
 - DOIs and other identifiers (PMID, PMC ID)
 - Comprehensive citation metadata
 
+### Size Optimization
+
+This crate can be minimized like so:
+
+```shell
+cargo add biblib --no-default-features --features lite
+```
+
 ## Installation
 
 Add this to your `Cargo.toml`:

@@ -20,11 +20,11 @@ dependencies = [
  "either",
  "itertools",
  "nanoid",
- "once_cell",
  "pretty_assertions",
  "quick-xml",
  "rayon",
  "regex",
+ "regex-lite",
  "rstest",
  "serde",
  "strsim",
@@ -178,12 +178,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "once_cell"
-version = "1.20.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1261fe7e33c73b354eab43b1273a57c8f967d0391e80353e51f764ac02cf6775"
-
-[[package]]
 name = "ppv-lite86"
 version = "0.2.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -301,6 +295,12 @@ dependencies = [
  "memchr",
  "regex-syntax",
 ]
+
+[[package]]
+name = "regex-lite"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53a49587ad06b26609c52e423de037e7f57f20d53535d66e08c695f347df952a"
 
 [[package]]
 name = "regex-syntax"

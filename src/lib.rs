@@ -172,6 +172,7 @@ pub use pubmed::PubMedParser;
 pub use ris::RisParser;
 
 mod utils;
+mod regex;
 
 /// A specialized Result type for citation operations.
 pub type Result<T> = std::result::Result<T, CitationError>;
