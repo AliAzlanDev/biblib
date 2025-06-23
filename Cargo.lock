@@ -17,7 +17,6 @@ version = "0.2.4"
 dependencies = [
  "csv",
  "nanoid",
- "once_cell",
  "quick-xml",
  "rayon",
  "regex",
@@ -127,12 +126,6 @@ checksum = "3ffa00dec017b5b1a8b7cf5e2c008bfda1aa7e0697ac1508b491fdf2622fb4d8"
 dependencies = [
  "rand",
 ]
-
-[[package]]
-name = "once_cell"
-version = "1.20.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1261fe7e33c73b354eab43b1273a57c8f967d0391e80353e51f764ac02cf6775"
 
 [[package]]
 name = "ppv-lite86"

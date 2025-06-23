@@ -97,16 +97,17 @@
 //!    - Matching journal names or ISSNs
 
 use crate::{Citation, DuplicateGroup};
-use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::HashMap;
+use std::sync::LazyLock;
 use strsim::jaro;
 use strsim::jaro_winkler;
 
 const DOI_TITLE_SIMILARITY_THRESHOLD: f64 = 0.85;
 const NO_DOI_TITLE_SIMILARITY_THRESHOLD: f64 = 0.93;
 
-static UNICODE_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"<U\+([0-9A-Fa-f]+)>").unwrap());
+static UNICODE_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"<U\+([0-9A-Fa-f]+)>").unwrap());
 
 const HTML_REPLACEMENTS: [(&str, &str); 13] = [
     ("&lt;", "<"),
