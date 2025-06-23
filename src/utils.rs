@@ -317,6 +317,21 @@ fn parse_month_name(month_str: &str) -> Option<u8> {
     }
 }
 
+/// get the newline delimiter (e.g. CRLF for Windows, LF for Linux). of multi-line text.
+pub(crate) fn newline_delimiter_of(text: &str) -> &'static str {
+    // find the first '\n', then check whether the character before it is '\r'
+    if text
+        .find('\n')
+        .and_then(|i| i.checked_sub(1))
+        .and_then(|i| text.get(i..i + 1))
+        .is_some_and(|x| x == "\r")
+    {
+        "\r\n"
+    } else {
+        "\n"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -585,5 +600,16 @@ mod tests {
         assert_eq!(parse_month_name("Feb"), Some(2));
         assert_eq!(parse_month_name("december"), Some(12));
         assert_eq!(parse_month_name("invalid"), None);
+    }
+
+    #[test]
+    fn test_newline_delimiter_of() {
+        assert_eq!(newline_delimiter_of(""), "\n");
+        assert_eq!(newline_delimiter_of("hello world"), "\n");
+        assert_eq!(newline_delimiter_of("hello\nworld"), "\n");
+        assert_eq!(newline_delimiter_of("\n"), "\n");
+        assert_eq!(newline_delimiter_of("\nhello\nworld\n"), "\n");
+        assert_eq!(newline_delimiter_of("hello\r\nworld"), "\r\n");
+        assert_eq!(newline_delimiter_of("hello\r\nworld\r\n"), "\r\n");
     }
 }

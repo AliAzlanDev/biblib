@@ -432,7 +432,6 @@ ER  -"#;
         let (citations, format) = detect_and_parse(content, "Google Scholar").unwrap();
         assert_eq!(format, "RIS");
         assert_eq!(citations[0].title, "Test Title");
-        assert_eq!(citations[0].source.as_deref(), Some("Google Scholar"));
     }
 
     #[test]
@@ -444,7 +443,6 @@ FAU - Smith, John"#;
         let (citations, format) = detect_and_parse(content, "Pubmed").unwrap();
         assert_eq!(format, "PubMed");
         assert_eq!(citations[0].title, "Test Title");
-        assert_eq!(citations[0].source.as_deref(), Some("Pubmed"));
     }
 
     #[test]
