@@ -1,5 +1,5 @@
 use crate::Date;
-use regex::Regex;
+use crate::regex::Regex;
 use std::sync::LazyLock;
 
 static DOI_URL_REGEX: LazyLock<Regex> =

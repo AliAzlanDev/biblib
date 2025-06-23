@@ -97,7 +97,7 @@
 //!    - Matching journal names or ISSNs
 
 use crate::{Citation, DuplicateGroup};
-use regex::Regex;
+use crate::regex::Regex;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 use strsim::jaro;
@@ -535,7 +535,7 @@ impl Deduplicator {
 
     fn convert_unicode_string(input: &str) -> String {
         UNICODE_REGEX
-            .replace_all(input, |caps: &regex::Captures| {
+            .replace_all(input, |caps: &crate::regex::Captures| {
                 u32::from_str_radix(&caps[1], 16)
                     .ok()
                     .and_then(char::from_u32)
