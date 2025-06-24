@@ -34,7 +34,7 @@ use crate::{Author, Citation, CitationError, CitationParser, Result};
 
 /// Parser for EndNote XML format citations.
 #[derive(Debug, Default, Clone)]
-pub struct EndNoteXmlParser {}
+pub struct EndNoteXmlParser;
 
 impl EndNoteXmlParser {
     /// Creates a new EndNote XML parser instance.
