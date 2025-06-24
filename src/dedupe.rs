@@ -429,15 +429,28 @@ impl Deduplicator {
             .map(|((idx, _citation), source)| (idx, source))
             .collect();
 
+        // Create global mapping from citation pointers to original indices
+        let global_ptr_to_index: HashMap<*const Citation, usize> = citations
+            .iter()
+            .enumerate()
+            .map(|(i, citation)| (citation as *const Citation, i))
+            .collect();
+
         if self.config.group_by_year {
-            let year_groups = Self::group_by_year(citations);
+            let year_groups = Self::group_by_year_with_indices(citations);
             if self.config.run_in_parallel {
                 use rayon::prelude::*;
 
                 let duplicate_groups: Result<Vec<_>, _> = year_groups
                     .par_iter()
-                    .map(|(_, citations_in_year)| {
-                        self.process_citation_group_with_sources(citations_in_year, &source_map)
+                    .map(|(_, citations_with_indices)| {
+                        let citations_in_year: Vec<&Citation> = citations_with_indices.iter().map(|(citation, _)| *citation).collect();
+                        // Create a local mapping for this year group
+                        let local_to_global: HashMap<*const Citation, usize> = citations_with_indices
+                            .iter()
+                            .map(|(citation, global_idx)| (*citation as *const Citation, *global_idx))
+                            .collect();
+                        self.process_citation_group_with_sources(&citations_in_year, &source_map, &local_to_global)
                     })
                     .collect();
 
@@ -446,16 +459,22 @@ impl Deduplicator {
             } else {
                 let mut duplicate_groups = Vec::new();
 
-                for citations_in_year in year_groups.values() {
+                for citations_with_indices in year_groups.values() {
+                    let citations_in_year: Vec<&Citation> = citations_with_indices.iter().map(|(citation, _)| *citation).collect();
+                    // Create a local mapping for this year group
+                    let local_to_global: HashMap<*const Citation, usize> = citations_with_indices
+                        .iter()
+                        .map(|(citation, global_idx)| (*citation as *const Citation, *global_idx))
+                        .collect();
                     duplicate_groups.extend(
-                        self.process_citation_group_with_sources(citations_in_year, &source_map)?,
+                        self.process_citation_group_with_sources(&citations_in_year, &source_map, &local_to_global)?,
                     );
                 }
                 Ok(duplicate_groups)
             }
         } else {
             let citations_refs: Vec<&Citation> = citations.iter().collect();
-            self.process_citation_group_with_sources(&citations_refs, &source_map)
+            self.process_citation_group_with_sources(&citations_refs, &source_map, &global_ptr_to_index)
         }
     }
 
@@ -519,15 +538,9 @@ impl Deduplicator {
         &self,
         citations: &[&Citation],
         source_map: &HashMap<usize, Option<&str>>,
+        global_ptr_to_index: &HashMap<*const Citation, usize>,
     ) -> Result<Vec<DuplicateGroup>, DedupeError> {
         let mut duplicate_groups = Vec::new();
-
-        // Create a mapping from citation pointer to original index for source lookup
-        let citation_to_index: HashMap<*const Citation, usize> = citations
-            .iter()
-            .enumerate()
-            .map(|(i, citation)| (*citation as *const Citation, i))
-            .collect();
 
         // Preprocess all citations in this group
         let preprocessed: Vec<PreprocessedCitation> = citations
@@ -627,7 +640,7 @@ impl Deduplicator {
                     .iter()
                     .map(|&local_idx| {
                         let citation_ptr = preprocessed[local_idx].original as *const Citation;
-                        citation_to_index[&citation_ptr]
+                        global_ptr_to_index[&citation_ptr]
                     })
                     .collect();
 
@@ -659,13 +672,13 @@ impl Deduplicator {
         Ok(duplicate_groups)
     }
 
-    fn group_by_year(citations: &[Citation]) -> HashMap<i32, Vec<&Citation>> {
-        let mut year_map: HashMap<i32, Vec<&Citation>> = HashMap::new();
+    fn group_by_year_with_indices(citations: &[Citation]) -> HashMap<i32, Vec<(&Citation, usize)>> {
+        let mut year_map: HashMap<i32, Vec<(&Citation, usize)>> = HashMap::new();
 
         // TODO: handle citations without a year when grouping by year
-        for citation in citations {
+        for (index, citation) in citations.iter().enumerate() {
             let year = Self::get_citation_year_static(citation).unwrap_or(0);
-            year_map.entry(year).or_default().push(citation);
+            year_map.entry(year).or_default().push((citation, index));
         }
 
         year_map
@@ -832,7 +845,7 @@ mod tests {
             },
         ];
 
-        let grouped = Deduplicator::group_by_year(&citations);
+        let grouped = Deduplicator::group_by_year_with_indices(&citations);
         assert_eq!(grouped.get(&2020).unwrap().len(), 1);
         assert_eq!(grouped.get(&0).unwrap().len(), 1);
     }
@@ -1231,5 +1244,88 @@ mod tests {
         // The citation with abstract should be selected as unique
         assert!(duplicate_groups[0].unique.abstract_text.is_some());
         assert_eq!(duplicate_groups[0].duplicates.len(), 1);
+    }
+
+    #[test]
+    fn test_source_preferences_with_year_grouping() {
+        // Create citations from different years to test year grouping with source preferences
+        let citations = vec![
+            Citation {
+                title: "Test Article 2020".to_string(),
+                doi: Some("10.1234/test2020".to_string()),
+                journal: Some("Test Journal".to_string()),
+                date: Some(crate::Date {
+                    year: 2020,
+                    month: None,
+                    day: None,
+                }),
+                ..Default::default()
+            },
+            Citation {
+                title: "Test Article 2020".to_string(), // Same as above but different source
+                doi: Some("10.1234/test2020".to_string()),
+                journal: Some("Test Journal".to_string()),
+                date: Some(crate::Date {
+                    year: 2020,
+                    month: None,
+                    day: None,
+                }),
+                ..Default::default()
+            },
+            Citation {
+                title: "Test Article 2021".to_string(),
+                doi: Some("10.1234/test2021".to_string()),
+                journal: Some("Test Journal".to_string()),
+                date: Some(crate::Date {
+                    year: 2021,
+                    month: None,
+                    day: None,
+                }),
+                ..Default::default()
+            },
+            Citation {
+                title: "Test Article 2021".to_string(), // Same as above but different source
+                doi: Some("10.1234/test2021".to_string()),
+                journal: Some("Test Journal".to_string()),
+                date: Some(crate::Date {
+                    year: 2021,
+                    month: None,
+                    day: None,
+                }),
+                ..Default::default()
+            },
+        ];
+
+        // Sources with PubMed having higher priority
+        let sources = vec!["Embase", "PubMed", "Embase", "PubMed"];
+
+        let config = DeduplicatorConfig {
+            group_by_year: true, // This is the key - enable year grouping
+            run_in_parallel: false,
+            source_preferences: vec!["PubMed".to_string(), "Embase".to_string()],
+        };
+
+        let deduplicator = Deduplicator::new().with_config(config);
+        let duplicate_groups = deduplicator
+            .find_duplicates_with_sources(&citations, &sources)
+            .unwrap();
+
+        // Should find 2 duplicate groups (one for each year)
+        assert_eq!(duplicate_groups.len(), 2);
+        
+        // Both unique citations should be from PubMed (indices 1 and 3)
+        // We can't directly check the source, but we can check that each group has the expected structure
+        let unique_titles: Vec<&str> = duplicate_groups
+            .iter()
+            .map(|group| group.unique.title.as_str())
+            .collect();
+        
+        assert!(unique_titles.contains(&"Test Article 2020"));
+        assert!(unique_titles.contains(&"Test Article 2021"));
+        
+        // Each group should have exactly one duplicate
+        for group in &duplicate_groups {
+            assert_eq!(group.duplicates.len(), 1);
+        }
     }
 }
