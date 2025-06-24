@@ -444,13 +444,23 @@ impl Deduplicator {
                 let duplicate_groups: Result<Vec<_>, _> = year_groups
                     .par_iter()
                     .map(|(_, citations_with_indices)| {
-                        let citations_in_year: Vec<&Citation> = citations_with_indices.iter().map(|(citation, _)| *citation).collect();
-                        // Create a local mapping for this year group
-                        let local_to_global: HashMap<*const Citation, usize> = citations_with_indices
+                        let citations_in_year: Vec<&Citation> = citations_with_indices
                             .iter()
-                            .map(|(citation, global_idx)| (*citation as *const Citation, *global_idx))
+                            .map(|(citation, _)| *citation)
                             .collect();
-                        self.process_citation_group_with_sources(&citations_in_year, &source_map, &local_to_global)
+                        // Create a local mapping for this year group
+                        let local_to_global: HashMap<*const Citation, usize> =
+                            citations_with_indices
+                                .iter()
+                                .map(|(citation, global_idx)| {
+                                    (*citation as *const Citation, *global_idx)
+                                })
+                                .collect();
+                        self.process_citation_group_with_sources(
+                            &citations_in_year,
+                            &source_map,
+                            &local_to_global,
+                        )
                     })
                     .collect();
 
@@ -460,21 +470,30 @@ impl Deduplicator {
                 let mut duplicate_groups = Vec::new();
 
                 for citations_with_indices in year_groups.values() {
-                    let citations_in_year: Vec<&Citation> = citations_with_indices.iter().map(|(citation, _)| *citation).collect();
+                    let citations_in_year: Vec<&Citation> = citations_with_indices
+                        .iter()
+                        .map(|(citation, _)| *citation)
+                        .collect();
                     // Create a local mapping for this year group
                     let local_to_global: HashMap<*const Citation, usize> = citations_with_indices
                         .iter()
                         .map(|(citation, global_idx)| (*citation as *const Citation, *global_idx))
                         .collect();
-                    duplicate_groups.extend(
-                        self.process_citation_group_with_sources(&citations_in_year, &source_map, &local_to_global)?,
-                    );
+                    duplicate_groups.extend(self.process_citation_group_with_sources(
+                        &citations_in_year,
+                        &source_map,
+                        &local_to_global,
+                    )?);
                 }
                 Ok(duplicate_groups)
             }
         } else {
             let citations_refs: Vec<&Citation> = citations.iter().collect();
-            self.process_citation_group_with_sources(&citations_refs, &source_map, &global_ptr_to_index)
+            self.process_citation_group_with_sources(
+                &citations_refs,
+                &source_map,
+                &global_ptr_to_index,
+            )
         }
     }
 
@@ -1312,17 +1331,17 @@ mod tests {
 
         // Should find 2 duplicate groups (one for each year)
         assert_eq!(duplicate_groups.len(), 2);
-        
+
         // Both unique citations should be from PubMed (indices 1 and 3)
         // We can't directly check the source, but we can check that each group has the expected structure
         let unique_titles: Vec<&str> = duplicate_groups
             .iter()
             .map(|group| group.unique.title.as_str())
             .collect();
-        
+
         assert!(unique_titles.contains(&"Test Article 2020"));
         assert!(unique_titles.contains(&"Test Article 2021"));
-        
+
         // Each group should have exactly one duplicate
         for group in &duplicate_groups {
             assert_eq!(group.duplicates.len(), 1);
