@@ -28,11 +28,6 @@
 //!   - EndNote XML
 //!   - CSV with configurable mappings
 //!
-//! - **Source Tracking**: Each parser can track the source of citations
-//!   - `with_source()` method available on all parsers
-//!   - Source information preserved in Citation objects
-//!   - Useful for tracking citation origins
-//!
 //! - **Rich Metadata Support**:
 //!   - Authors with affiliations
 //!   - Journal details (name, abbreviation, ISSN)
@@ -44,16 +39,15 @@
 //! ```rust
 //! use biblib::{CitationParser, RisParser};
 //!
-//! // Parse RIS format with source tracking
+//! // Parse RIS format
 //! let input = r#"TY  - JOUR
 //! TI  - Example Article
 //! AU  - Smith, John
 //! ER  -"#;
 //!
-//! let parser = RisParser::new().with_source("Pubmed");
+//! let parser = RisParser::new();
 //! let citations = parser.parse(input).unwrap();
 //! println!("Title: {}", citations[0].title);
-//! println!("Source: {}", citations[0].source.clone().unwrap());
 //! ```
 //! # Citation Formats
 //!
@@ -66,13 +60,13 @@
 //! let ris = RisParser::new();
 //!
 //! // PubMed format
-//! let pubmed = PubMedParser::new().with_source("Pubmed");
+//! let pubmed = PubMedParser::new();
 //!
 //! // EndNote XML
-//! let endnote = EndNoteXmlParser::new().with_source("Google Scholar");
+//! let endnote = EndNoteXmlParser::new();
 //!
 //! // CSV format
-//! let csv = CsvParser::new().with_source("Cochrane");
+//! let csv = CsvParser::new();
 //! ```
 //!
 //! # Citation Deduplication
@@ -100,7 +94,7 @@
 //! let config = DeduplicatorConfig {
 //!     group_by_year: true,
 //!     run_in_parallel: true,
-//!     source_preferences: vec!["PubMed".to_string(), "Cochrane".to_string()],
+//!     ..Default::default()
 //! };
 //!
 //! let deduplicator = Deduplicator::new().with_config(config);
@@ -171,8 +165,8 @@ pub use pubmed::PubMedParser;
 #[cfg(feature = "ris")]
 pub use ris::RisParser;
 
-mod utils;
 mod regex;
+mod utils;
 
 /// A specialized Result type for citation operations.
 pub type Result<T> = std::result::Result<T, CitationError>;
@@ -289,8 +283,6 @@ pub struct Citation {
     pub publisher: Option<String>,
     /// Additional fields not covered by standard fields
     pub extra_fields: HashMap<String, Vec<String>>,
-    /// Source of the citation (e.g. pubmed, ris, etc.)
-    pub source: Option<String>,
 }
 
 /// Represents a group of duplicate citations with one unique citation
@@ -325,7 +317,6 @@ pub trait CitationParser {
 /// # Arguments
 ///
 /// * `content` - The content of the file to parse
-/// * `source` - Source of citations
 ///
 /// # Returns
 ///
@@ -341,12 +332,11 @@ pub trait CitationParser {
 /// TI  - Example Title
 /// ER  -"#;
 ///
-/// let (citations, format) = detect_and_parse(content, "Cochrane").unwrap();
+/// let (citations, format) = detect_and_parse(content).unwrap();
 /// assert_eq!(format, "RIS");
 /// assert_eq!(citations[0].title, "Example Title");
-/// assert_eq!(citations[0].source.as_deref(), Some("Cochrane"));
 /// ```
-pub fn detect_and_parse(content: &str, source: &str) -> Result<(Vec<Citation>, &'static str)> {
+pub fn detect_and_parse(content: &str) -> Result<(Vec<Citation>, &'static str)> {
     let trimmed = content.trim();
 
     // Empty content check
@@ -359,7 +349,7 @@ pub fn detect_and_parse(content: &str, source: &str) -> Result<(Vec<Citation>, &
         // EndNote XML format
         #[cfg(feature = "xml")]
         {
-            let parser = EndNoteXmlParser::new().with_source(source);
+            let parser = EndNoteXmlParser::new();
             return parser
                 .parse(content)
                 .map(|citations| (citations, "EndNote XML"));
@@ -374,7 +364,7 @@ pub fn detect_and_parse(content: &str, source: &str) -> Result<(Vec<Citation>, &
     if trimmed.starts_with("TY  -") || trimmed.contains("\nTY  -") {
         #[cfg(feature = "ris")]
         {
-            let parser = RisParser::new().with_source(source);
+            let parser = RisParser::new();
             return parser.parse(content).map(|citations| (citations, "RIS"));
         }
         #[cfg(not(feature = "ris"))]
@@ -385,7 +375,7 @@ pub fn detect_and_parse(content: &str, source: &str) -> Result<(Vec<Citation>, &
     if trimmed.starts_with("PMID-") || trimmed.contains("\nPMID-") {
         #[cfg(feature = "pubmed")]
         {
-            let parser = PubMedParser::new().with_source(source);
+            let parser = PubMedParser::new();
             return parser.parse(content).map(|citations| (citations, "PubMed"));
         }
         #[cfg(not(feature = "pubmed"))]
@@ -429,7 +419,7 @@ TI  - Test Title
 AU  - Smith, John
 ER  -"#;
 
-        let (citations, format) = detect_and_parse(content, "Google Scholar").unwrap();
+        let (citations, format) = detect_and_parse(content).unwrap();
         assert_eq!(format, "RIS");
         assert_eq!(citations[0].title, "Test Title");
     }
@@ -440,7 +430,7 @@ ER  -"#;
 TI  - Test Title
 FAU - Smith, John"#;
 
-        let (citations, format) = detect_and_parse(content, "Pubmed").unwrap();
+        let (citations, format) = detect_and_parse(content).unwrap();
         assert_eq!(format, "PubMed");
         assert_eq!(citations[0].title, "Test Title");
     }
@@ -452,22 +442,21 @@ FAU - Smith, John"#;
 <titles><title>Test Title</title></titles>
 </record></records></xml>"#;
 
-        let (citations, format) = detect_and_parse(content, "Embase").unwrap();
+        let (citations, format) = detect_and_parse(content).unwrap();
         assert_eq!(format, "EndNote XML");
         assert_eq!(citations[0].title, "Test Title");
-        assert_eq!(citations[0].source.as_deref(), Some("Embase"));
     }
 
     #[test]
     fn test_detect_and_parse_empty() {
-        let result = detect_and_parse("", "Any Source");
+        let result = detect_and_parse("");
         assert!(matches!(result, Err(CitationError::InvalidFormat(_))));
     }
 
     #[test]
     fn test_detect_and_parse_unknown() {
         let content = "Some random content\nthat doesn't match\nany known format";
-        let result = detect_and_parse(content, "Unknown");
+        let result = detect_and_parse(content);
         assert!(matches!(result, Err(CitationError::InvalidFormat(_))));
     }
 }

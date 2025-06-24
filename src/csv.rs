@@ -1,7 +1,6 @@
-//! CSV format parser implementation with source tracking support.
+//! CSV format parser implementation.
 //!
-//! This module provides functionality to parse CSV formatted citations with configurable headers
-//! and built-in source tracking capabilities.
+//! This module provides functionality to parse CSV formatted citations with configurable headers.
 //!
 //! # Example
 //!
@@ -10,12 +9,10 @@
 //!
 //! let input = "Title,Author,Year\nExample Paper,Smith J,2023";
 //!
-//! let parser = CsvParser::new()
-//!     .with_source("Cochrane");
+//! let parser = CsvParser::new();
 //!     
 //! let citations = parser.parse(input).unwrap();
 //! assert_eq!(citations[0].title, "Example Paper");
-//! assert_eq!(citations[0].source.as_deref(), Some("Cochrane"));
 //! ```
 
 use csv::{ReaderBuilder, StringRecord};
@@ -169,7 +166,6 @@ impl CsvConfig {
 #[derive(Debug, Clone)]
 pub struct CsvParser {
     config: CsvConfig,
-    source: Option<String>,
 }
 
 impl Default for CsvParser {
@@ -184,7 +180,6 @@ impl CsvParser {
     pub fn new() -> Self {
         Self {
             config: CsvConfig::new(),
-            source: None,
         }
     }
 
@@ -195,16 +190,9 @@ impl CsvParser {
         self
     }
 
-    #[must_use]
-    pub fn with_source(mut self, source: &str) -> Self {
-        self.source = Some(source.to_string());
-        self
-    }
-
     /// Parses a record into a Citation using the current header mapping
     fn parse_record(&self, headers: &[String], record: StringRecord) -> Result<Citation> {
         let mut citation = Citation {
-            source: self.source.clone(),
             ..Default::default()
         };
         let mut has_id = false;

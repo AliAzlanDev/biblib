@@ -1,6 +1,6 @@
-//! EndNote XML format parser implementation with source tracking support.
+//! EndNote XML format parser implementation.
 //!
-//! Provides functionality to parse EndNote XML formatted citations with built-in source tracking.
+//! Provides functionality to parse EndNote XML formatted citations.
 //!
 //! # Example
 //!
@@ -13,12 +13,10 @@
 //! <contributors><authors><author>Smith, John</author></authors></contributors>
 //! </record></records></xml>"#;
 //!
-//! let parser = EndNoteXmlParser::new()
-//!     .with_source("Embase");
+//! let parser = EndNoteXmlParser::new();
 //!     
 //! let citations = parser.parse(input).unwrap();
 //! assert_eq!(citations[0].title, "Example Title");
-//! assert_eq!(citations[0].source.as_deref(), Some("Embase"));
 //! ```
 //!
 //! Visit the [EndNote: XML Document Type Definition](https://support.clarivate.com/Endnote/s/article/EndNote-XML-Document-Type-Definition?language=en_US) for more details.
@@ -36,9 +34,7 @@ use crate::{Author, Citation, CitationError, CitationParser, Result};
 
 /// Parser for EndNote XML format citations.
 #[derive(Debug, Default, Clone)]
-pub struct EndNoteXmlParser {
-    source: Option<String>,
-}
+pub struct EndNoteXmlParser;
 
 impl EndNoteXmlParser {
     /// Creates a new EndNote XML parser instance.
@@ -51,13 +47,7 @@ impl EndNoteXmlParser {
     /// ```
     #[must_use]
     pub fn new() -> Self {
-        Self { source: None }
-    }
-
-    #[must_use]
-    pub fn with_source(mut self, source: &str) -> Self {
-        self.source = Some(source.to_string());
-        self
+        Self {}
     }
 
     /// Extracts text content from XML events until the closing tag is found
@@ -81,7 +71,7 @@ impl EndNoteXmlParser {
                     return Err(CitationError::InvalidFormat(format!(
                         "Unexpected EOF while looking for closing tag '{}'",
                         closing_tag_str
-                    )))
+                    )));
                 }
                 Err(e) => return Err(CitationError::from(e)),
                 _ => continue,
@@ -154,11 +144,9 @@ impl EndNoteXmlParser {
     ) -> Result<Citation> {
         let mut citation = Citation {
             id: nanoid!(),
-            source: self.source.clone(),
             ..Default::default()
         };
         citation.citation_type.push("Journal Article".to_string()); // Set default type
-        citation.source = self.source.clone(); // Now we can access self.source
 
         loop {
             match reader.read_event_into(buf) {
@@ -258,7 +246,7 @@ impl EndNoteXmlParser {
                                 Ok(Event::End(ref inner_e))
                                     if inner_e.name() == QName(b"dates") =>
                                 {
-                                    break
+                                    break;
                                 }
                                 Ok(Event::Eof) => break,
                                 Err(e) => return Err(CitationError::from(e)),
