@@ -27,7 +27,7 @@ use nanoid::nanoid;
 /// RIS is a standardized format for bibliographic citations that uses two-letter
 /// tags at the start of each line to denote different citation fields.
 #[derive(Debug, Default, Clone)]
-pub struct RisParser {}
+pub struct RisParser;
 
 impl RisParser {
     /// Creates a new RIS parser instance.
