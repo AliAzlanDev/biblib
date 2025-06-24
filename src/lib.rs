@@ -239,7 +239,6 @@ pub struct Author {
 /// Represents a single citation with its metadata.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Citation {
-    pub id: String,
     /// Type of the citation
     pub citation_type: Vec<String>,
     /// Title of the work

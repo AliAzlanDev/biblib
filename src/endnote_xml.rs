@@ -21,7 +21,6 @@
 //!
 //! Visit the [EndNote: XML Document Type Definition](https://support.clarivate.com/Endnote/s/article/EndNote-XML-Document-Type-Definition?language=en_US) for more details.
 
-use nanoid::nanoid;
 use quick_xml::events::Event;
 use quick_xml::name::QName;
 use quick_xml::reader::Reader;
@@ -47,7 +46,7 @@ impl EndNoteXmlParser {
     /// ```
     #[must_use]
     pub fn new() -> Self {
-        Self {}
+        Self
     }
 
     /// Extracts text content from XML events until the closing tag is found
@@ -142,10 +141,7 @@ impl EndNoteXmlParser {
         reader: &mut Reader<B>,
         buf: &mut Vec<u8>,
     ) -> Result<Citation> {
-        let mut citation = Citation {
-            id: nanoid!(),
-            ..Default::default()
-        };
+        let mut citation = Citation::default();
         citation.citation_type.push("Journal Article".to_string()); // Set default type
 
         loop {

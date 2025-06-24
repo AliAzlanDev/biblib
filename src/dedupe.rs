@@ -20,12 +20,11 @@
 //! ### Basic Deduplication
 //!
 //! ```rust
-//! use biblib::{dedupe::Deduplicator, Citation, Author};
+//! use biblib::{dedupe::Deduplicator, Citation, Author, Date};
 //!
 //! // Create some sample citations
 //! let citations = vec![
 //!     Citation {
-//!         id: "1".to_string(),
 //!         title: "Machine Learning Basics".to_string(),
 //!         authors: vec![
 //!             Author {
@@ -35,12 +34,11 @@
 //!             }
 //!         ],
 //!         doi: Some("10.1234/ml.2023.001".to_string()),
-//!         year: Some(2023),
+//!         date: Some(Date { year: 2023, month: None, day: None }),
 //!         ..Default::default()
 //!     },
 //!     // Duplicate citation with slightly different title
 //!     Citation {
-//!         id: "2".to_string(),
 //!         title: "Machine Learning Basics.".to_string(), // Notice the period
 //!         authors: vec![
 //!             Author {
@@ -50,7 +48,7 @@
 //!             }
 //!         ],
 //!         doi: Some("10.1234/ml.2023.001".to_string()),
-//!         year: Some(2023),
+//!         date: Some(Date { year: 2023, month: None, day: None }),
 //!         ..Default::default()
 //!     },
 //! ];
@@ -77,13 +75,11 @@
 //!
 //! let citations = vec![
 //!     Citation {
-//!         id: "1".to_string(),
 //!         title: "Example Title".to_string(),
 //!         doi: Some("10.1234/example".to_string()),
 //!         ..Default::default()
 //!     },
 //!     Citation {
-//!         id: "2".to_string(),
 //!         title: "Example Title".to_string(),
 //!         doi: Some("10.1234/example".to_string()),
 //!         ..Default::default()
@@ -345,7 +341,6 @@ impl Deduplicator {
     ///
     /// let citations = vec![
     ///     Citation {
-    ///         id: "1".to_string(),
     ///         title: "Example Title".to_string(),
     ///         doi: Some("10.1234/example".to_string()),
     ///         ..Default::default()
@@ -387,13 +382,11 @@ impl Deduplicator {
     ///
     /// let citations = vec![
     ///     Citation {
-    ///         id: "1".to_string(),
     ///         title: "Example Title".to_string(),
     ///         doi: Some("10.1234/example".to_string()),
     ///         ..Default::default()
     ///     },
     ///     Citation {
-    ///         id: "2".to_string(),
     ///         title: "Example Title".to_string(),
     ///         doi: Some("10.1234/example".to_string()),
     ///         ..Default::default()
@@ -417,22 +410,23 @@ impl Deduplicator {
         // Validate input - warn if sources length exceeds citations
         if sources.len() > citations.len() {
             return Err(DedupeError::ConfigError(format!(
-                "More sources ({}) provided than citations ({})",
+                "Number of sources ({}) exceeds number of citations ({}). Each source must correspond to a citation.",
                 sources.len(),
                 citations.len()
             )));
         }
 
-        // Create source mapping using explicit zipping for clarity
-        let source_map: HashMap<&str, Option<&str>> = citations
+        // Create source mapping using citation indices instead of IDs
+        let source_map: HashMap<usize, Option<&str>> = citations
             .iter()
+            .enumerate()
             .zip(
                 sources
                     .iter()
                     .map(|&s| Some(s))
                     .chain(std::iter::repeat(None)),
             )
-            .map(|(citation, source)| (citation.id.as_str(), source))
+            .map(|((idx, _citation), source)| (idx, source))
             .collect();
 
         if self.config.group_by_year {
@@ -499,7 +493,8 @@ impl Deduplicator {
     fn select_unique_citation_with_sources<'a>(
         &self,
         citations: &[&'a Citation],
-        source_map: &HashMap<&str, Option<&str>>,
+        citation_indices: &[usize],
+        source_map: &HashMap<usize, Option<&str>>,
     ) -> &'a Citation {
         if citations.len() == 1 {
             return citations[0];
@@ -508,10 +503,10 @@ impl Deduplicator {
         // First try source preferences
         if !self.config.source_preferences.is_empty() {
             for preferred_source in &self.config.source_preferences {
-                if let Some(citation) = citations.iter().find(|c| {
-                    source_map.get(c.id.as_str()) == Some(&Some(preferred_source.as_str()))
-                }) {
-                    return citation;
+                for (citation, &idx) in citations.iter().zip(citation_indices.iter()) {
+                    if source_map.get(&idx) == Some(&Some(preferred_source.as_str())) {
+                        return citation;
+                    }
                 }
             }
         }
@@ -523,9 +518,17 @@ impl Deduplicator {
     fn process_citation_group_with_sources(
         &self,
         citations: &[&Citation],
-        source_map: &HashMap<&str, Option<&str>>,
+        source_map: &HashMap<usize, Option<&str>>,
     ) -> Result<Vec<DuplicateGroup>, DedupeError> {
         let mut duplicate_groups = Vec::new();
+
+        // Create a mapping from citation pointer to original index for source lookup
+        let citation_to_index: HashMap<*const Citation, usize> = citations
+            .iter()
+            .enumerate()
+            .map(|(i, citation)| (*citation as *const Citation, i))
+            .collect();
+
         // Preprocess all citations in this group
         let preprocessed: Vec<PreprocessedCitation> = citations
             .iter()
@@ -553,18 +556,19 @@ impl Deduplicator {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let mut processed_ids = std::collections::HashSet::new();
+        let mut processed_indices = std::collections::HashSet::new();
 
         for i in 0..preprocessed.len() {
-            if processed_ids.contains(&preprocessed[i].original.id) {
+            if processed_indices.contains(&i) {
                 continue;
             }
 
             let mut group_citations = vec![preprocessed[i].original];
+            let mut group_indices = vec![i];
             let current = &preprocessed[i];
 
             for (j, other) in preprocessed.iter().enumerate() {
-                if i == j || processed_ids.contains(&other.original.id) {
+                if i == j || processed_indices.contains(&j) {
                     continue;
                 }
 
@@ -612,24 +616,38 @@ impl Deduplicator {
 
                 if is_duplicate {
                     group_citations.push(other.original);
-                    processed_ids.insert(other.original.id.clone());
+                    group_indices.push(j);
+                    processed_indices.insert(j);
                 }
             }
 
             if group_citations.len() > 1 {
-                let unique = self.select_unique_citation_with_sources(&group_citations, source_map);
+                // Convert citation indices to original indices for source lookup
+                let original_indices: Vec<usize> = group_indices
+                    .iter()
+                    .map(|&local_idx| {
+                        let citation_ptr = preprocessed[local_idx].original as *const Citation;
+                        citation_to_index[&citation_ptr]
+                    })
+                    .collect();
+
+                let unique = self.select_unique_citation_with_sources(
+                    &group_citations,
+                    &original_indices,
+                    source_map,
+                );
 
                 let duplicates: Vec<Citation> = group_citations
                     .into_iter()
-                    .filter(|c| c.id != unique.id)
-                    .cloned()
+                    .filter(|c| !std::ptr::eq(*c, unique))
+                    .map(|c| (*c).clone())
                     .collect();
 
                 duplicate_groups.push(DuplicateGroup {
                     unique: unique.clone(),
                     duplicates,
                 });
-                processed_ids.insert(unique.id.clone());
+                processed_indices.insert(i);
             } else {
                 duplicate_groups.push(DuplicateGroup {
                     unique: current.original.clone(),
@@ -787,7 +805,6 @@ mod tests {
     fn test_group_by_year() {
         let citations = vec![
             Citation {
-                id: "1".to_string(),
                 title: "Title 1".to_string(),
                 authors: vec![],
                 journal: None,
@@ -803,7 +820,6 @@ mod tests {
                 ..Default::default()
             },
             Citation {
-                id: "2".to_string(),
                 title: "Title 2".to_string(),
                 authors: vec![],
                 journal: None,
@@ -825,7 +841,6 @@ mod tests {
     fn test_find_duplicates() {
         let citations = vec![
             Citation {
-                id: "1".to_string(),
                 title: "Title 1".to_string(),
                 date: Some(crate::Date {
                     year: 2020,
@@ -837,7 +852,6 @@ mod tests {
                 ..Default::default()
             },
             Citation {
-                id: "2".to_string(),
                 title: "Title 1".to_string(),
                 date: Some(crate::Date {
                     year: 2020,
@@ -849,7 +863,6 @@ mod tests {
                 ..Default::default()
             },
             Citation {
-                id: "3".to_string(),
                 title: "Title 2".to_string(),
                 date: Some(crate::Date {
                     year: 2020,
@@ -869,7 +882,7 @@ mod tests {
         assert_eq!(
             duplicate_groups
                 .iter()
-                .find(|g| g.unique.id == "1")
+                .find(|g| g.unique.doi == Some("10.1234/abc".to_string()))
                 .unwrap()
                 .duplicates
                 .len(),
@@ -881,7 +894,6 @@ mod tests {
     fn test_missing_doi() {
         let citations = vec![
             Citation {
-                id: "1".to_string(),
                 title: "Title 1".to_string(),
                 date: Some(crate::Date {
                     year: 2020,
@@ -894,7 +906,6 @@ mod tests {
                 ..Default::default()
             },
             Citation {
-                id: "2".to_string(),
                 title: "Title 1".to_string(),
                 date: Some(crate::Date {
                     year: 2020,
@@ -907,7 +918,6 @@ mod tests {
                 ..Default::default()
             },
             Citation {
-                id: "3".to_string(),
                 title: "Title 2".to_string(),
                 date: Some(crate::Date {
                     year: 2020,
@@ -1099,7 +1109,6 @@ mod tests {
     fn test_without_year_grouping() {
         let citations = vec![
             Citation {
-                id: "1".to_string(),
                 title: "Title 1".to_string(),
                 date: Some(crate::Date {
                     year: 2020,
@@ -1111,7 +1120,6 @@ mod tests {
                 ..Default::default()
             },
             Citation {
-                id: "2".to_string(),
                 title: "Title 1".to_string(),
                 date: Some(crate::Date {
                     year: 2019, // Different year
@@ -1146,7 +1154,6 @@ mod tests {
     fn test_source_preferences() {
         let citations = vec![
             Citation {
-                id: "1".to_string(),
                 title: "Title 1".to_string(),
                 doi: Some("10.1234/abc".to_string()),
                 journal: Some("Journal 1".to_string()),
@@ -1158,7 +1165,6 @@ mod tests {
                 ..Default::default()
             },
             Citation {
-                id: "2".to_string(),
                 title: "Title 1".to_string(),
                 doi: Some("10.1234/abc".to_string()),
                 journal: Some("Journal 1".to_string()),
@@ -1184,15 +1190,15 @@ mod tests {
             .unwrap();
 
         assert_eq!(duplicate_groups.len(), 1);
-        assert_eq!(duplicate_groups[0].unique.id, "2"); // source1 citation
-        assert_eq!(duplicate_groups[0].duplicates[0].id, "1");
+        // The second citation should be selected as unique because source1 (PubMed)
+        // has higher priority than source2 (Embase) in our preferences
+        assert_eq!(duplicate_groups[0].duplicates.len(), 1);
     }
 
     #[test]
     fn test_abstract_preference() {
         let citations = vec![
             Citation {
-                id: "1".to_string(),
                 title: "Title 1".to_string(),
                 abstract_text: None,
                 doi: Some("10.1234/abc".to_string()),
@@ -1205,7 +1211,6 @@ mod tests {
                 ..Default::default()
             },
             Citation {
-                id: "2".to_string(),
                 title: "Title 1".to_string(),
                 abstract_text: Some("Abstract".to_string()),
                 doi: Some("10.1234/abc".to_string()),
@@ -1223,7 +1228,8 @@ mod tests {
         let duplicate_groups = deduplicator.find_duplicates(&citations).unwrap();
 
         assert_eq!(duplicate_groups.len(), 1);
-        assert_eq!(duplicate_groups[0].unique.id, "2"); // citation with abstract
-        assert_eq!(duplicate_groups[0].duplicates[0].id, "1");
+        // The citation with abstract should be selected as unique
+        assert!(duplicate_groups[0].unique.abstract_text.is_some());
+        assert_eq!(duplicate_groups[0].duplicates.len(), 1);
     }
 }

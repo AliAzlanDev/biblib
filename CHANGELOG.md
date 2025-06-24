@@ -5,18 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0 - Unreleased]
 
-### BREAKING CHANGES
+### Removed
 
-- **Removed source tracking functionality**: The `source` field has been completely removed from the `Citation` struct and all parser implementations
-- **Removed `with_source()` methods**: All parsers no longer have the `with_source()` method
-- **Updated `detect_and_parse()` function**: Now takes only one parameter (`content`) instead of two (`content`, `source`)
-- **Updated deduplication API**: Added `find_duplicates_with_sources()` method for source-aware deduplication
+- **Citation ID field**: The `id` field has been completely removed from the `Citation` struct as it is not part of the actual bibliographic data parsed from citation formats
+- **Source tracking in Citation struct**: The `source` field has been completely removed from the `Citation` struct and all parser implementations
+- **Parser `with_source()` methods**: All parsers no longer have the `with_source()` method for setting citation source
+
+### Changed
+
+- **`detect_and_parse()` function signature**: Now takes only one parameter (`content`) instead of two (`content`, `source`)
+
+### Added
+
+- **Enhanced deduplication API**: New `find_duplicates_with_sources()` method for source-aware deduplication when sources are managed externally
 
 ### Migration Guide
 
-If you were using source tracking in your application, you'll need to handle source tracking at the application level:
+#### 1. Citation ID Management
+
+If you were relying on the auto-generated `id` field in citations, you'll need to manage IDs at the application level:
+
+**Before (v0.2.x):**
+
+```rust
+let parser = RisParser::new();
+let citations = parser.parse(input).unwrap();
+let citation_id = citations[0].id.clone(); // Auto-generated nanoid
+```
+
+**After (v0.3.x):**
+
+```rust
+let parser = RisParser::new();
+let citations = parser.parse(input).unwrap();
+// Generate IDs in your application if needed:
+let citation_id = nanoid::nanoid!(); // or your preferred ID system
+```
+
+#### 2. Source Tracking
+
+Source tracking must now be handled at the application level instead of within the Citation struct:
 
 **Before (v0.2.x):**
 
@@ -35,26 +65,38 @@ let citations = parser.parse(input).unwrap();
 let source = "PubMed"; // manage this in your app
 ```
 
-**For `detect_and_parse()`:**
+#### 3. Format Detection API
+
+The `detect_and_parse()` function no longer accepts a source parameter:
+
+**Before (v0.2.x):**
 
 ```rust
-// Before
 let (citations, format) = detect_and_parse(content, "PubMed").unwrap();
+```
 
-// After
+**After (v0.3.x):**
+
+```rust
 let (citations, format) = detect_and_parse(content).unwrap();
 // Track source separately in your application
 ```
 
-**For deduplication with source preferences:**
+#### 4. Deduplication with Sources
+
+Use the new `find_duplicates_with_sources()` method when you need source-aware deduplication:
+
+**Before (v0.2.x):**
 
 ```rust
-// Before (using source field in Citation)
 let citations = vec![/* citations with source field */];
 let deduplicator = Deduplicator::new().with_config(config);
 let groups = deduplicator.find_duplicates(&citations).unwrap();
+```
 
-// After (using external source mapping)
+**After (v0.3.x):**
+
+```rust
 let citations = vec![/* citations without source field */];
 let sources = vec!["PubMed", "CrossRef"]; // source for each citation
 let deduplicator = Deduplicator::new().with_config(config);

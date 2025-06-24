@@ -20,7 +20,6 @@
 
 use crate::utils::{format_doi, format_page_numbers, parse_author_name, parse_ris_date};
 use crate::{Author, Citation, CitationError, CitationParser, Result};
-use nanoid::nanoid;
 
 /// Parser for RIS format citations.
 ///
@@ -40,7 +39,7 @@ impl RisParser {
     /// ```
     #[must_use]
     pub fn new() -> Self {
-        Self {}
+        Self
     }
 
     /// Parses an author string in various formats
@@ -112,10 +111,7 @@ impl CitationParser for RisParser {
         }
 
         let mut citations = Vec::new();
-        let mut current_citation = Citation {
-            id: nanoid!(),
-            ..Default::default()
-        };
+        let mut current_citation = Citation::default();
         let mut start_page = String::new();
 
         for line in input.lines() {
@@ -138,7 +134,6 @@ impl CitationParser for RisParser {
                             if !current_citation.title.is_empty() {
                                 citations.push(current_citation);
                                 current_citation = Citation::default();
-                                current_citation.id = nanoid!();
                             }
                             current_citation.citation_type.push(content.to_string());
                         }
@@ -204,7 +199,6 @@ impl CitationParser for RisParser {
                             if !current_citation.title.is_empty() {
                                 citations.push(current_citation);
                                 current_citation = Citation::default();
-                                current_citation.id = nanoid!();
                             }
                         }
                         "C2" => {
