@@ -1,6 +1,6 @@
-//! PubMed format parser implementation with source tracking support.
+//! PubMed format parser implementation.
 //!
-//! Provides functionality to parse PubMed formatted citations with built-in source tracking.
+//! Provides functionality to parse PubMed formatted citations.
 //!
 //! # Example
 //!
@@ -32,9 +32,7 @@ use crate::{Citation, CitationParser, Result};
 /// PubMed format is commonly used by PubMed and the National Library of Medicine
 /// for bibliographic citations.
 #[derive(Debug, Clone, Default)]
-pub struct PubMedParser {
-    source: Option<String>,
-}
+pub struct PubMedParser {}
 
 impl PubMedParser {
     /// Creates a new PubMed parser instance.
@@ -48,12 +46,6 @@ impl PubMedParser {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
-    }
-
-    #[must_use]
-    pub fn with_source(mut self, source: &str) -> Self {
-        self.source = Some(source.to_string());
-        self
     }
 }
 
@@ -238,7 +230,10 @@ AU  - Van Dyke MCC
         assert_eq!(result.len(), 1);
         let citation = &result[0];
         assert_eq!(citation.pmid.as_deref(), Some("31181385"));
-        assert_eq!(citation.title, "Fantastic yeasts and where to find them: the hidden diversity of dimorphic fungal pathogens.");
+        assert_eq!(
+            citation.title,
+            "Fantastic yeasts and where to find them: the hidden diversity of dimorphic fungal pathogens."
+        );
         assert_eq!(
             result[0].abstract_text.as_deref(),
             Some("This is a long abstract that spans multiple lines for testing purposes.")

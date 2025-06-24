@@ -1,6 +1,6 @@
-//! RIS format parser implementation with source tracking support.
+//! RIS format parser implementation.
 //!
-//! Provides functionality to parse RIS formatted citations with built-in source tracking.
+//! Provides functionality to parse RIS formatted citations.
 //!
 //! # Example
 //!
@@ -12,12 +12,10 @@
 //! AU  - Smith, John
 //! ER  -"#;
 //!
-//! let parser = RisParser::new()
-//!     .with_source("Google Scholar");
+//! let parser = RisParser::new();
 //!     
 //! let citations = parser.parse(input).unwrap();
 //! assert_eq!(citations[0].title, "Example Title");
-//! assert_eq!(citations[0].source.as_deref(), Some("Google Scholar"));
 //! ```
 
 use crate::utils::{format_doi, format_page_numbers, parse_author_name, parse_ris_date};
@@ -29,9 +27,7 @@ use nanoid::nanoid;
 /// RIS is a standardized format for bibliographic citations that uses two-letter
 /// tags at the start of each line to denote different citation fields.
 #[derive(Debug, Default, Clone)]
-pub struct RisParser {
-    source: Option<String>,
-}
+pub struct RisParser {}
 
 impl RisParser {
     /// Creates a new RIS parser instance.
@@ -44,12 +40,7 @@ impl RisParser {
     /// ```
     #[must_use]
     pub fn new() -> Self {
-        Self { source: None }
-    }
-
-    pub fn with_source(mut self, source: &str) -> Self {
-        self.source = Some(source.to_string());
-        self
+        Self {}
     }
 
     /// Parses an author string in various formats
@@ -123,10 +114,8 @@ impl CitationParser for RisParser {
         let mut citations = Vec::new();
         let mut current_citation = Citation {
             id: nanoid!(),
-            source: self.source.clone(),
             ..Default::default()
         };
-        current_citation.source = self.source.clone(); // Add source if provided
         let mut start_page = String::new();
 
         for line in input.lines() {

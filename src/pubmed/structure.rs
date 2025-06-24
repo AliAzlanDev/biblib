@@ -80,9 +80,6 @@ impl TryFrom<RawPubmedData> for crate::Citation {
                 .into_iter()
                 .map(|(k, v)| (k.as_tag().to_string(), v))
                 .collect(),
-
-            // soon to be removed, see https://github.com/AliAzlanDev/biblib/issues/9#issuecomment-2989899194
-            source: None,
         })
     }
 }

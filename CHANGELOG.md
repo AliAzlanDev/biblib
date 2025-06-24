@@ -5,6 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### BREAKING CHANGES
+
+- **Removed source tracking functionality**: The `source` field has been completely removed from the `Citation` struct and all parser implementations
+- **Removed `with_source()` methods**: All parsers no longer have the `with_source()` method
+- **Updated `detect_and_parse()` function**: Now takes only one parameter (`content`) instead of two (`content`, `source`)
+- **Updated deduplication API**: Added `find_duplicates_with_sources()` method for source-aware deduplication
+
+### Migration Guide
+
+If you were using source tracking in your application, you'll need to handle source tracking at the application level:
+
+**Before (v0.2.x):**
+
+```rust
+let parser = RisParser::new().with_source("PubMed");
+let citations = parser.parse(input).unwrap();
+let source = citations[0].source.clone(); // "PubMed"
+```
+
+**After (v0.3.x):**
+
+```rust
+let parser = RisParser::new();
+let citations = parser.parse(input).unwrap();
+// Handle source tracking in your application:
+let source = "PubMed"; // manage this in your app
+```
+
+**For `detect_and_parse()`:**
+
+```rust
+// Before
+let (citations, format) = detect_and_parse(content, "PubMed").unwrap();
+
+// After
+let (citations, format) = detect_and_parse(content).unwrap();
+// Track source separately in your application
+```
+
+**For deduplication with source preferences:**
+
+```rust
+// Before (using source field in Citation)
+let citations = vec![/* citations with source field */];
+let deduplicator = Deduplicator::new().with_config(config);
+let groups = deduplicator.find_duplicates(&citations).unwrap();
+
+// After (using external source mapping)
+let citations = vec![/* citations without source field */];
+let sources = vec!["PubMed", "CrossRef"]; // source for each citation
+let deduplicator = Deduplicator::new().with_config(config);
+let groups = deduplicator.find_duplicates_with_sources(&citations, &sources).unwrap();
+```
+
 ## [0.2.4] - 2025-06-11
 
 ### Fixed

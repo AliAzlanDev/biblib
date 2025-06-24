@@ -1,4 +1,4 @@
-use crate::pubmed::author::{resolve_authors, ConsecutiveTag};
+use crate::pubmed::author::{ConsecutiveTag, resolve_authors};
 use crate::pubmed::structure::RawPubmedData;
 use crate::pubmed::tags::PubmedTag;
 use crate::utils::newline_delimiter_of;
