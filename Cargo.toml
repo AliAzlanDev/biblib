@@ -23,7 +23,6 @@ lite = ["dep:regex-lite"]
 
 [dependencies]
 thiserror = "2.0.11"
-nanoid = "0.4.0"
 quick-xml = { version = "0.37.2", optional = true }
 csv = { version = "1.3.1", optional = true }
 strsim = { version = "0.11.1", optional = true }

@@ -16,7 +16,6 @@
 //! ```
 
 use csv::{ReaderBuilder, StringRecord};
-use nanoid::nanoid;
 use std::collections::HashMap;
 
 use crate::utils::{
@@ -26,7 +25,6 @@ use crate::{Author, Citation, CitationError, CitationParser, Result};
 
 /// Default header mappings for common CSV column names
 const DEFAULT_HEADERS: &[(&str, &[&str])] = &[
-    ("id", &["id", "citation_id"]),
     ("title", &["title", "article title", "publication title"]),
     ("authors", &["author", "authors", "creator", "creators"]),
     (
@@ -192,10 +190,7 @@ impl CsvParser {
 
     /// Parses a record into a Citation using the current header mapping
     fn parse_record(&self, headers: &[String], record: StringRecord) -> Result<Citation> {
-        let mut citation = Citation {
-            ..Default::default()
-        };
-        let mut has_id = false;
+        let mut citation = Citation::default();
 
         for (i, value) in record.iter().enumerate() {
             if i >= headers.len() {
@@ -203,12 +198,6 @@ impl CsvParser {
             }
             if let Some(field) = self.config.get_field_for_header(&headers[i]) {
                 match field.as_str() {
-                    "id" => {
-                        if !value.is_empty() {
-                            citation.id = value.to_string();
-                            has_id = true;
-                        }
-                    }
                     "title" => citation.title = value.to_string(),
                     "authors" => {
                         for author_str in value.split(';') {
@@ -258,10 +247,6 @@ impl CsvParser {
                     }
                 }
             }
-        }
-
-        if !has_id {
-            citation.id = nanoid!();
         }
 
         Ok(citation)

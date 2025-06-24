@@ -36,7 +36,6 @@ impl TryFrom<RawPubmedData> for crate::Citation {
             .transpose()?;
 
         Ok(Self {
-            id: nanoid::nanoid!(),
             citation_type: data
                 .remove(&PubmedTag::PublicationType)
                 .unwrap_or_else(Vec::new),
