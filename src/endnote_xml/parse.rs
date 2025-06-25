@@ -145,13 +145,11 @@ fn parse_record<B: BufRead>(
     buf: &mut Vec<u8>,
 ) -> Result<Citation, CitationError> {
     let mut citation = Citation::new();
-    citation.citation_type.push("Journal Article".to_string()); // Set default type
 
     loop {
         match reader.read_event_into(buf) {
             Ok(Event::Start(ref e)) => match e.name().as_ref() {
                 b"ref-type" => {
-                    citation.citation_type.clear(); // Clear default before adding new type
                     for attr in e.attributes() {
                         let attr = attr.map_err(CitationError::from)?;
                         if attr.key.as_ref() == b"name" {
@@ -214,9 +212,7 @@ fn parse_record<B: BufRead>(
                 }
                 b"electronic-resource-num" => {
                     let doi = extract_text(reader, buf, b"electronic-resource-num")?;
-                    if doi.starts_with("10.") || doi.contains("doi.org") {
-                        citation.doi = crate::utils::format_doi(&doi);
-                    }
+                    citation.doi = crate::utils::format_doi(&doi);
                 }
                 b"url" => {
                     let url = extract_text(reader, buf, b"url")?;
