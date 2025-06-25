@@ -1,4 +1,5 @@
 use crate::pubmed::author::{ConsecutiveTag, resolve_authors};
+use crate::pubmed::split::BlankLineSplit;
 use crate::pubmed::structure::RawPubmedData;
 use crate::pubmed::tags::PubmedTag;
 use crate::utils::newline_delimiter_of;
@@ -10,9 +11,15 @@ use std::ops::Add;
 /// Parse the content of a PubMed formatted .nbib file, returning its key-value pairs
 /// in a [HashMap] (with the order of duplicate values preserved in the [Vec] values)
 /// alongside any unparsable lines.
-pub fn pubmed_parse<S: AsRef<str>>(nbib_text: S) -> RawPubmedData {
+pub fn pubmed_parse<S: AsRef<str>>(nbib_text: S) -> Vec<RawPubmedData> {
     let text = nbib_text.as_ref();
     let line_break = newline_delimiter_of(text);
+    BlankLineSplit::new(text, line_break)
+        .map(|(_line_number, chunk)| pubmed_parse_one(chunk, line_break))
+        .collect() // TODO do not collect, return an Iterator instead
+}
+
+fn pubmed_parse_one(text: &str, line_break: &str) -> RawPubmedData {
     let (mut ignored_lines, pairs): (Vec<_>, Vec<_>) =
         WholeLinesIter::new(text.split(line_break)).partition_map(parse_complete_entry);
     let (data, others) = separate_stateless_entries(pairs);
