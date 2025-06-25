@@ -73,8 +73,12 @@ impl RawRisData {
         for (tag, values) in &self.data {
             if let Some(priority) = tag.journal_priority() {
                 if priority < best_priority && !values.is_empty() {
-                    best_priority = priority;
-                    best_journal = values.first().cloned();
+                    if let Some(first_value) = values.first() {
+                        if !first_value.trim().is_empty() {
+                            best_priority = priority;
+                            best_journal = Some(first_value.clone());
+                        }
+                    }
                 }
             }
         }
@@ -90,8 +94,12 @@ impl RawRisData {
         for (tag, values) in &self.data {
             if let Some(priority) = tag.journal_abbr_priority() {
                 if priority < best_priority && !values.is_empty() {
-                    best_priority = priority;
-                    best_abbr = values.first().cloned();
+                    if let Some(first_value) = values.first() {
+                        if !first_value.trim().is_empty() {
+                            best_priority = priority;
+                            best_abbr = Some(first_value.clone());
+                        }
+                    }
                 }
             }
         }
@@ -105,10 +113,52 @@ impl TryFrom<RawRisData> for crate::Citation {
 
     fn try_from(mut raw: RawRisData) -> Result<Self, Self::Error> {
         let citation_type = raw.remove(&RisTag::Type).unwrap_or_default();
+        let title = Self::extract_title(&mut raw)?;
+        let (journal, journal_abbr) = Self::extract_journal_info(&mut raw);
+        let date = Self::extract_date(&mut raw);
+        let (volume, issue, pages) = Self::extract_publication_details(&mut raw);
+        let (doi, urls) = Self::extract_doi_and_urls(&mut raw);
+        let (pmid, pmc_id) = Self::extract_identifiers(&mut raw);
+        let abstract_text = Self::extract_abstract(&mut raw);
+        let keywords = raw.remove(&RisTag::Keywords).unwrap_or_default();
+        let issn = raw.remove(&RisTag::SerialNumber).unwrap_or_default();
+        let (language, publisher) = Self::extract_metadata(&mut raw);
+        let extra_fields = Self::extract_extra_fields(&mut raw);
 
+        Ok(crate::Citation {
+            citation_type,
+            title,
+            authors: raw.authors,
+            journal,
+            journal_abbr,
+            date: date.clone(),
+            #[allow(deprecated)]
+            year: date.as_ref().map(|d| d.year),
+            volume,
+            issue,
+            pages,
+            issn,
+            doi,
+            pmid,
+            pmc_id,
+            abstract_text,
+            keywords,
+            urls,
+            language,
+            mesh_terms: Vec::new(), // RIS doesn't typically have MeSH terms
+            publisher,
+            extra_fields,
+        })
+    }
+}
+
+impl crate::Citation {
+    /// Extract title from RIS data, trying primary title first, then alternative.
+    fn extract_title(raw: &mut RawRisData) -> Result<String, CitationError> {
         let title = raw
             .get_first(&RisTag::Title)
-            .or_else(|| raw.get_first(&RisTag::TitleAlternative))
+            .filter(|s| !s.trim().is_empty())
+            .or_else(|| raw.get_first(&RisTag::TitleAlternative).filter(|s| !s.trim().is_empty()))
             .cloned()
             .ok_or_else(|| CitationError::MissingField("title".to_string()))?;
 
@@ -116,6 +166,11 @@ impl TryFrom<RawRisData> for crate::Citation {
         raw.remove(&RisTag::Title);
         raw.remove(&RisTag::TitleAlternative);
 
+        Ok(title)
+    }
+
+    /// Extract journal information using priority-based selection.
+    fn extract_journal_info(raw: &mut RawRisData) -> (Option<String>, Option<String>) {
         let journal = raw.get_best_journal();
         let journal_abbr = raw.get_best_journal_abbr();
 
@@ -126,6 +181,11 @@ impl TryFrom<RawRisData> for crate::Citation {
         raw.remove(&RisTag::JournalAbbreviationAlternative);
         raw.remove(&RisTag::SecondaryTitle);
 
+        (journal, journal_abbr)
+    }
+
+    /// Extract date from RIS data with validation.
+    fn extract_date(raw: &mut RawRisData) -> Option<crate::Date> {
         // Parse date from available date fields with validation
         let date = raw
             .get_first(&RisTag::PublicationYear)
@@ -140,6 +200,13 @@ impl TryFrom<RawRisData> for crate::Citation {
         raw.remove(&RisTag::DatePrimary);
         raw.remove(&RisTag::DateAccess);
 
+        date
+    }
+
+    /// Extract publication details: volume, issue, and formatted pages.
+    fn extract_publication_details(
+        raw: &mut RawRisData,
+    ) -> (Option<String>, Option<String>, Option<String>) {
         let volume = raw
             .remove(&RisTag::Volume)
             .and_then(|v| v.into_iter().next());
@@ -164,32 +231,16 @@ impl TryFrom<RawRisData> for crate::Citation {
             (None, None) => None,
         };
 
+        (volume, issue, pages)
+    }
+
+    /// Extract DOI and URLs with two-pass DOI extraction strategy.
+    fn extract_doi_and_urls(raw: &mut RawRisData) -> (Option<String>, Vec<String>) {
         // First pass: Extract DOI from dedicated DOI field
         let mut doi = raw
             .remove(&RisTag::Doi)
             .and_then(|v| v.into_iter().next())
             .and_then(|doi_str| crate::utils::format_doi(&doi_str));
-
-        let pmid = raw
-            .remove(&RisTag::ReferenceId)
-            .and_then(|v| v.into_iter().next());
-
-        let pmc_id = raw
-            .remove(&RisTag::PmcId)
-            .and_then(|v| v.into_iter().next())
-            .filter(|s| s.contains("PMC"));
-
-        let abstract_text = raw
-            .get_first(&RisTag::Abstract)
-            .or_else(|| raw.get_first(&RisTag::AbstractAlternative))
-            .cloned();
-
-        raw.remove(&RisTag::Abstract);
-        raw.remove(&RisTag::AbstractAlternative);
-
-        let keywords = raw.remove(&RisTag::Keywords).unwrap_or_default();
-
-        let issn = raw.remove(&RisTag::SerialNumber).unwrap_or_default();
 
         // Collect URLs from various link fields and extract DOI if not already found
         let mut urls = Vec::new();
@@ -217,6 +268,38 @@ impl TryFrom<RawRisData> for crate::Citation {
             }
         }
 
+        (doi, urls)
+    }
+
+    /// Extract PMID and PMC ID identifiers.
+    fn extract_identifiers(raw: &mut RawRisData) -> (Option<String>, Option<String>) {
+        let pmid = raw
+            .remove(&RisTag::ReferenceId)
+            .and_then(|v| v.into_iter().next());
+
+        let pmc_id = raw
+            .remove(&RisTag::PmcId)
+            .and_then(|v| v.into_iter().next())
+            .filter(|s| s.contains("PMC"));
+
+        (pmid, pmc_id)
+    }
+
+    /// Extract abstract text from primary or alternative abstract fields.
+    fn extract_abstract(raw: &mut RawRisData) -> Option<String> {
+        let abstract_text = raw
+            .get_first(&RisTag::Abstract)
+            .or_else(|| raw.get_first(&RisTag::AbstractAlternative))
+            .cloned();
+
+        raw.remove(&RisTag::Abstract);
+        raw.remove(&RisTag::AbstractAlternative);
+
+        abstract_text
+    }
+
+    /// Extract language and publisher metadata.
+    fn extract_metadata(raw: &mut RawRisData) -> (Option<String>, Option<String>) {
         let language = raw
             .remove(&RisTag::Language)
             .and_then(|v| v.into_iter().next());
@@ -224,40 +307,19 @@ impl TryFrom<RawRisData> for crate::Citation {
             .remove(&RisTag::Publisher)
             .and_then(|v| v.into_iter().next());
 
+        (language, publisher)
+    }
+
+    /// Extract remaining fields as extra_fields after removing end-of-reference marker.
+    fn extract_extra_fields(raw: &mut RawRisData) -> HashMap<String, Vec<String>> {
         // Remove end-of-reference marker
         raw.remove(&RisTag::EndOfReference);
 
         // Collect remaining fields as extra_fields
-        let extra_fields = raw
-            .data
-            .into_iter()
+        raw.data
+            .drain()
             .map(|(tag, values)| (tag.as_tag().to_string(), values))
-            .collect();
-
-        Ok(crate::Citation {
-            citation_type,
-            title,
-            authors: raw.authors,
-            journal,
-            journal_abbr,
-            date: date.clone(),
-            #[allow(deprecated)]
-            year: date.as_ref().map(|d| d.year),
-            volume,
-            issue,
-            pages,
-            issn,
-            doi,
-            pmid,
-            pmc_id,
-            abstract_text,
-            keywords,
-            urls,
-            language,
-            mesh_terms: Vec::new(), // RIS doesn't typically have MeSH terms
-            publisher,
-            extra_fields,
-        })
+            .collect()
     }
 }
 
@@ -353,5 +415,63 @@ mod tests {
         let citation: crate::Citation = raw.try_into().unwrap();
         // Should prioritize the dedicated DOI field
         assert_eq!(citation.doi, Some("10.5678/primary".to_string()));
+    }
+
+    #[test]
+    fn test_title_extraction_edge_cases() {
+        // Test that empty title falls back to alternative
+        let mut raw = RawRisData::new();
+        raw.add_data(RisTag::Type, "JOUR".to_string());
+        raw.add_data(RisTag::Title, "".to_string());
+        raw.add_data(RisTag::TitleAlternative, "Fallback Title".to_string());
+        
+        let citation: crate::Citation = raw.try_into().unwrap();
+        assert_eq!(citation.title, "Fallback Title");
+        
+        // Test fallback works when primary title is completely missing
+        let mut raw2 = RawRisData::new();
+        raw2.add_data(RisTag::Type, "JOUR".to_string());
+        raw2.add_data(RisTag::TitleAlternative, "Fallback Title".to_string());
+        
+        let citation2: crate::Citation = raw2.try_into().unwrap();
+        assert_eq!(citation2.title, "Fallback Title");
+
+        // Test that whitespace-only title also falls back
+        let mut raw3 = RawRisData::new();
+        raw3.add_data(RisTag::Type, "JOUR".to_string());
+        raw3.add_data(RisTag::Title, "   ".to_string());
+        raw3.add_data(RisTag::TitleAlternative, "Fallback Title".to_string());
+        
+        let citation3: crate::Citation = raw3.try_into().unwrap();
+        assert_eq!(citation3.title, "Fallback Title");
+    }
+
+    #[test]
+    fn test_complex_doi_extraction_scenarios() {
+        let mut raw = RawRisData::new();
+        raw.add_data(RisTag::Type, "JOUR".to_string());
+        raw.add_data(RisTag::Title, "Test Article".to_string());
+
+        // Test malformed DOI URL handling - should not extract DOI from malformed URLs
+        raw.add_data(RisTag::Url, "https://malformed-doi-url".to_string());
+        raw.add_data(RisTag::LinkPdf, "https://doi.org/malformed".to_string());
+
+        let citation: crate::Citation = raw.try_into().unwrap();
+        // Should handle malformed DOIs gracefully - no DOI should be extracted
+        assert_eq!(citation.doi, None, "Should not extract DOI from malformed URLs");
+        assert_eq!(citation.urls.len(), 2, "Should still preserve all URLs");
+        assert!(citation.urls.contains(&"https://malformed-doi-url".to_string()));
+        assert!(citation.urls.contains(&"https://doi.org/malformed".to_string()));
+    }
+
+    #[test]
+    fn test_journal_priority_with_empty_values() {
+        let mut raw = RawRisData::new();
+        raw.add_data(RisTag::JournalFull, "".to_string()); // Empty primary
+        raw.add_data(RisTag::SecondaryTitle, "Secondary Journal".to_string());
+        raw.add_data(RisTag::JournalFullAlternative, "Alt Journal".to_string());
+
+        // Should skip empty values and pick the next priority
+        assert_eq!(raw.get_best_journal(), Some("Secondary Journal".to_string()));
     }
 }

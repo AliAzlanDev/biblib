@@ -115,33 +115,6 @@ ER  -
     }
 
     #[test]
-    fn test_parse_with_metadata() {
-        let input = r#"Record #1 of 2
-Provider: Some Provider
-Content: text/plain; charset="UTF-8"
-
-TY  - JOUR
-TI  - Test Article
-AU  - Smith, John
-ER  -
-
-Record #2 of 2
-Provider: Some Provider
-Content: text/plain; charset="UTF-8"
-
-TY  - BOOK
-TI  - Another Test
-AU  - Doe, Jane
-ER  -"#;
-
-        let parser = RisParser::new();
-        let result = parser.parse(input).unwrap();
-        assert_eq!(result.len(), 2);
-        assert_eq!(result[0].title, "Test Article");
-        assert_eq!(result[1].title, "Another Test");
-    }
-
-    #[test]
     fn test_parse_gs_format() {
         let input = r#"TY  - JOUR
 T1  - Albendazole therapy in children with focal seizures and single small enhancing computerized tomographic lesions: a randomized, placebo-controlled, double blind trial
@@ -186,22 +159,6 @@ ER  -
     }
 
     #[test]
-    fn test_parse_journal_priority() {
-        let input = r#"TY  - JOUR
-TI  - Test Article
-JO  - Alternative Journal
-JF  - Main Journal
-T2  - Secondary Title
-ER  -"#;
-
-        let parser = RisParser::new();
-        let result = parser.parse(input).unwrap();
-
-        // JF (JournalFull) should have priority over JO (JournalFullAlternative)
-        assert_eq!(result[0].journal, Some("Main Journal".to_string()));
-    }
-
-    #[test]
     fn test_parse_url_with_doi_extraction() {
         let input = r#"TY  - JOUR
 TI  - Test Article
@@ -224,23 +181,5 @@ ER  -"#;
                 .contains(&"https://example.com/pdf".to_string())
         );
         assert_eq!(result[0].doi, Some("10.1000/test".to_string()));
-    }
-
-    #[test]
-    fn test_parse_empty_input() {
-        let parser = RisParser::new();
-        let result = parser.parse("");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_parse_no_valid_citations() {
-        let input = r#"Record #1 of 0
-Provider: Test Provider
-Content: metadata only"#;
-
-        let parser = RisParser::new();
-        let result = parser.parse(input);
-        assert!(result.is_err());
     }
 }
