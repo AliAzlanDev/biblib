@@ -7,19 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0 - Unreleased]
 
-### Removed
+### Added
 
-- **Citation ID field**: The `id` field has been completely removed from the `Citation` struct as it is not part of the actual bibliographic data parsed from citation formats
-- **Source tracking in Citation struct**: The `source` field has been completely removed from the `Citation` struct and all parser implementations
-- **Parser `with_source()` methods**: All parsers no longer have the `with_source()` method for setting citation source
+- **Enhanced deduplication API**: New `find_duplicates_with_sources()` method for source-aware deduplication when sources are managed externally
+- **Enhanced CSV parser functionality**: Added configuration options for quote character, trimming, flexible parsing, memory optimization, additional header aliases, validation, and automatic format detection
 
 ### Changed
 
 - **`detect_and_parse()` function signature**: Now takes only one parameter (`content`) instead of two (`content`, `source`)
 
-### Added
+### Fixed
 
-- **Enhanced deduplication API**: New `find_duplicates_with_sources()` method for source-aware deduplication when sources are managed externally
+- **CSV extra fields functionality**: Fixed critical issue where extra fields were completely ignored and not populated in Citation structs
+
+### Removed
+
+- **Citation ID field**: The `id` field has been completely removed from the `Citation` struct as it is not part of the actual bibliographic data parsed from citation formats
+- **Source tracking in Citation struct**: The `source` field has been completely removed from the `Citation` struct and all parser implementations
+- **Parser `with_source()` methods**: All parsers no longer have the `with_source()` method for setting citation source
 
 ### Migration Guide
 
@@ -82,7 +87,24 @@ let (citations, format) = detect_and_parse(content).unwrap();
 // Track source separately in your application
 ```
 
-#### 4. Deduplication with Sources
+#### 4. Enhanced CSV Parser API
+
+The CSV parser has been significantly enhanced. Existing code will continue to work, but new features are available:
+
+```rust
+use biblib::csv::{CsvParser, CsvConfig};
+
+// Auto-detection (new)
+let parser = CsvParser::with_auto_detection();
+
+// Enhanced configuration (new options)
+let mut config = CsvConfig::new();
+config.set_quote(b'\'').set_flexible(true).add_header_aliases("title", vec!["paper_title".to_string()]);
+
+let parser = CsvParser::with_config(config);
+```
+
+#### 5. Deduplication with Sources
 
 Use the new `find_duplicates_with_sources()` method when you need source-aware deduplication:
 
