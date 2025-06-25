@@ -223,6 +223,7 @@ ER  -"#;
                 .urls
                 .contains(&"https://example.com/pdf".to_string())
         );
+        assert_eq!(result[0].doi, Some("10.1000/test".to_string()));
     }
 
     #[test]
