@@ -8,6 +8,60 @@ use quick_xml::events::Event;
 use quick_xml::name::QName;
 use std::io::BufRead;
 
+/// Convert buffer position to approximate line number
+fn buffer_position_to_line_number(content: &str, pos: usize) -> usize {
+    if pos >= content.len() {
+        return content.lines().count();
+    }
+    content[..pos].lines().count()
+}
+
+/// Enhanced extract_text function that tracks line numbers for better error reporting
+fn extract_text_with_position<B: BufRead>(
+    reader: &mut Reader<B>,
+    buf: &mut Vec<u8>,
+    closing_tag: &[u8],
+    content: &str,
+    _start_pos: usize,
+) -> Result<String, CitationError> {
+    let mut text = String::new();
+    let closing_tag_str = String::from_utf8_lossy(closing_tag);
+
+    loop {
+        let current_pos = reader.buffer_position() as usize;
+        match reader.read_event_into(buf) {
+            Ok(Event::Text(e)) => {
+                text.push_str(&e.unescape().map_err(|e| {
+                    let line_num = buffer_position_to_line_number(content, current_pos);
+                    CitationError::InvalidFormat(format!(
+                        "Invalid XML text content at line {}: {}", 
+                        line_num, e
+                    ))
+                })?);
+            }
+            Ok(Event::End(e)) if e.name() == QName(closing_tag) => break,
+            Ok(Event::Eof) => {
+                let line_num = buffer_position_to_line_number(content, current_pos);
+                return Err(CitationError::InvalidFormat(format!(
+                    "Unexpected EOF at line {} while looking for closing tag '{}'",
+                    line_num, closing_tag_str
+                )));
+            }
+            Err(e) => {
+                let line_num = buffer_position_to_line_number(content, current_pos);
+                return Err(CitationError::InvalidFormat(format!(
+                    "XML parsing error at line {}: {}", 
+                    line_num, e
+                )));
+            }
+            _ => continue,
+        }
+        buf.clear();
+    }
+
+    Ok(text.trim().to_string())
+}
+
 /// Parse EndNote XML content into citations.
 ///
 /// This function parses EndNote XML format and returns a vector of citations.
@@ -34,9 +88,10 @@ pub(crate) fn parse_endnote_xml(content: &str) -> Result<Vec<Citation>, Citation
     let mut buf = Vec::new();
 
     loop {
+        let pos = reader.buffer_position() as usize;
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(ref e)) if e.name() == QName(b"record") => {
-                citations.push(parse_record(&mut reader, &mut buf)?);
+                citations.push(parse_record(&mut reader, &mut buf, content, pos)?);
             }
             Ok(Event::Eof) => break,
             Err(e) => return Err(CitationError::from(e)),
@@ -89,6 +144,7 @@ fn extract_text<B: BufRead>(
 fn extract_date_from_year_element<B: BufRead>(
     reader: &mut Reader<B>,
     e: &quick_xml::events::BytesStart,
+    content: &str,
 ) -> Result<(Option<i32>, Option<u8>, Option<u8>), CitationError> {
     let mut year_val = None;
     let mut month_val = None;
@@ -127,13 +183,15 @@ fn extract_date_from_year_element<B: BufRead>(
     // If no year attribute, try to get year from text content
     if year_val.is_none() {
         let mut local_buf = Vec::new();
-        if let Ok(year) = extract_text(reader, &mut local_buf, b"year")?.parse::<i32>() {
+        let start_pos = reader.buffer_position() as usize;
+        if let Ok(year) = extract_text_with_position(reader, &mut local_buf, b"year", content, start_pos)?.parse::<i32>() {
             year_val = Some(year);
         }
     } else {
         // Still need to consume the text content
         let mut local_buf = Vec::new();
-        let _ = extract_text(reader, &mut local_buf, b"year")?;
+        let start_pos = reader.buffer_position() as usize;
+        let _ = extract_text_with_position(reader, &mut local_buf, b"year", content, start_pos)?;
     }
 
     Ok((year_val, month_val, day_val))
@@ -143,6 +201,8 @@ fn extract_date_from_year_element<B: BufRead>(
 fn parse_record<B: BufRead>(
     reader: &mut Reader<B>,
     buf: &mut Vec<u8>,
+    content: &str,
+    start_pos: usize,
 ) -> Result<Citation, CitationError> {
     let mut citation = Citation::new();
 
@@ -222,7 +282,7 @@ fn parse_record<B: BufRead>(
                     citation.urls.push(url);
                 }
                 b"year" => {
-                    let (year_val, month_val, day_val) = extract_date_from_year_element(reader, e)?;
+                    let (year_val, month_val, day_val) = extract_date_from_year_element(reader, e, content)?;
                     citation.date = crate::utils::parse_endnote_date(year_val, month_val, day_val);
                     // For backward compatibility, also set the deprecated year field
                     #[allow(deprecated)]
@@ -238,7 +298,7 @@ fn parse_record<B: BufRead>(
                             Ok(Event::Start(ref inner_e)) if inner_e.name() == QName(b"year") => {
                                 // Parse year element within dates
                                 let (year_val, month_val, day_val) =
-                                    extract_date_from_year_element(reader, inner_e)?;
+                                    extract_date_from_year_element(reader, inner_e, content)?;
                                 citation.date =
                                     crate::utils::parse_endnote_date(year_val, month_val, day_val);
                                 // For backward compatibility, also set the deprecated year field
@@ -287,8 +347,9 @@ fn parse_record<B: BufRead>(
 
     // Validate that we have at least a title or author
     if citation.title.is_empty() && citation.authors.is_empty() {
+        let line_num = buffer_position_to_line_number(content, start_pos);
         return Err(CitationError::MalformedInput {
-            line: 0, // We don't track line numbers with quick_xml easily
+            line: line_num,
             message: "Citation must have at least a title or author".to_string(),
         });
     }

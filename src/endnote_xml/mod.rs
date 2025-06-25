@@ -368,4 +368,76 @@ mod integration_tests {
         assert_eq!(citations2[0].title, "Secondary as Title");
         assert_eq!(citations2[0].journal, Some("Alt as Journal".to_string()));
     }
+
+    #[test]
+    fn test_line_number_tracking_in_errors() {
+        // Test that we get accurate line numbers in error messages
+        let xml_with_empty_record = r#"
+<xml>
+  <records>
+    <record>
+      <!-- This record has no title or author, it's on line 5 -->
+    </record>
+  </records>
+</xml>
+        "#;
+
+        let result = parse_endnote_xml(xml_with_empty_record);
+        assert!(result.is_err());
+        
+        if let Err(crate::CitationError::MalformedInput { line, message }) = result {
+            // The line number should be around line 4-5 where the record starts
+            assert!(line > 0, "Line number should be tracked and greater than 0");
+            assert!(line <= 6, "Line number should be reasonable for this small XML");
+            assert!(message.contains("Citation must have at least a title or author"));
+        } else {
+            panic!("Expected MalformedInput error with line number");
+        }
+
+        // Test line number tracking with malformed XML text
+        let xml_with_unclosed_tag = r#"
+<?xml version="1.0" encoding="UTF-8"?>
+<xml>
+  <records>
+    <record>
+      <title>Unclosed Title
+      <!-- Missing closing title tag -->
+    </record>
+  </records>
+</xml>
+        "#;
+
+        let result2 = parse_endnote_xml(xml_with_unclosed_tag);
+        assert!(result2.is_err());
+        // This should produce an error with line number information
+    }
+
+    #[test]
+    fn test_detailed_line_tracking() {
+        // XML with specific content to test line tracking precision
+        let xml = r#"<?xml version="1.0"?>
+<xml>
+  <records>
+    <record>
+      <!-- This record is intentionally empty -->
+      <!-- and should fail at approximately line 5 -->
+    </record>
+    <record>
+      <title>Valid Record</title>
+    </record>
+  </records>
+</xml>"#;
+
+        let result = parse_endnote_xml(xml);
+        assert!(result.is_err());
+        
+        if let Err(crate::CitationError::MalformedInput { line, message }) = result {
+            println!("Error at line {}: {}", line, message);
+            // The empty record starts around line 4, buffer position captured earlier
+            assert!(line >= 3 && line <= 7, "Line number should be around line 3-7, got {}", line);
+            assert!(message.contains("Citation must have at least a title or author"));
+        } else {
+            panic!("Expected MalformedInput error with line number");
+        }
+    }
 }
