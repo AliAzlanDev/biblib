@@ -106,27 +106,50 @@ fn parse_ris_line(line: &str, line_number: usize) -> Result<(RisTag, String)> {
 
     let tag = RisTag::from_tag(tag_str);
 
-    // Extract content - handle various RIS formats
-    let content = if line.len() >= 6 && &line[2..6] == "  - " {
-        // Standard format: "TY  - JOUR"
-        line[6..].trim()
-    } else if line.len() >= 5 && &line[2..5] == "  -" {
-        // Format without space after dash: "ER  -"
-        line[5..].trim()
-    } else if line.len() >= 4 && &line[2..4] == "- " {
-        // Format without spaces before dash: "TY- JOUR"
-        line[4..].trim()
-    } else if line.len() >= 3 && &line[2..3] == "-" {
-        // Minimal format: "TY-JOUR"
-        line[3..].trim()
-    } else if line.len() > 2 {
-        // Fallback: just take everything after the tag
-        line[2..].trim()
-    } else {
-        ""
-    };
+    // Extract content
+    let content = extract_ris_content(line, line_number)?;
 
-    Ok((tag, content.to_string()))
+    Ok((tag, content))
+}
+
+/// Extract content from a RIS line, handling various format patterns.
+fn extract_ris_content(line: &str, line_number: usize) -> Result<String> {
+    // Standard format: "TY  - JOUR"
+    if line.len() >= 6 && &line[2..6] == "  - " {
+        return Ok(line[6..].trim().to_string());
+    }
+
+    // Format without space after dash: "ER  -"
+    if line.len() >= 5 && &line[2..5] == "  -" {
+        return Ok(line[5..].trim().to_string());
+    }
+
+    // Format without spaces before dash: "TY- JOUR"
+    if line.len() >= 4 && &line[2..4] == "- " {
+        return Ok(line[4..].trim().to_string());
+    }
+
+    // Minimal format: "TY-JOUR"
+    if line.len() >= 3 && &line[2..3] == "-" {
+        return Ok(line[3..].trim().to_string());
+    }
+
+    // Require proper separator (space or dash) after tag
+    if line.len() > 2 {
+        let third_char = line.chars().nth(2).unwrap();
+        if third_char == ' ' || third_char == '-' {
+            return Ok(line[2..].trim().to_string());
+        }
+    }
+
+    // If we reach here, the line doesn't have a proper separator
+    Err(CitationError::MalformedInput {
+        message: format!(
+            "RIS line missing proper separator (space or dash) after tag: '{}'",
+            line
+        ),
+        line: line_number,
+    })
 }
 
 /// Parse an author string into an Author struct.
@@ -158,6 +181,8 @@ mod tests {
     #[case("AU  - Smith, John", RisTag::Author, "Smith, John")]
     #[case("ER  -", RisTag::EndOfReference, "")]
     #[case("DO  - 10.1000/test", RisTag::Doi, "10.1000/test")]
+    #[case("TY Content", RisTag::Type, "Content")]
+    #[case("TY-Content", RisTag::Type, "Content")]
     fn test_parse_ris_line_valid(
         #[case] line: &str,
         #[case] expected_tag: RisTag,
@@ -172,6 +197,8 @@ mod tests {
     #[case("")]
     #[case("A")]
     #[case("!!  - Invalid tag")]
+    #[case("TYNoSeparator")]
+    #[case("TYBAD")]
     fn test_parse_ris_line_invalid(#[case] line: &str) {
         let result = parse_ris_line(line, 1);
         assert!(result.is_err());

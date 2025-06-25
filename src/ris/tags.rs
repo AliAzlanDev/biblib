@@ -187,10 +187,9 @@ impl RisTag {
         )
     }
 
-
     /// Get the priority of this tag for journal name selection.
     /// Lower numbers have higher priority.
-    /// 
+    ///
     /// Priority order:
     /// 1. JF (Journal Full) - primary full journal name
     /// 2. T2 (Secondary Title) - alternative journal title
@@ -206,7 +205,7 @@ impl RisTag {
 
     /// Get the priority of this tag for journal abbreviation selection.
     /// Lower numbers have higher priority.
-    /// 
+    ///
     /// Priority order:
     /// 1. JA (Journal Abbreviation) - primary standard abbreviation
     /// 2. J2 (Journal Abbreviation Alternative) - alternative abbreviation
@@ -251,5 +250,4 @@ mod tests {
     fn test_is_author_tag(#[case] tag: RisTag, #[case] expected: bool) {
         assert_eq!(tag.is_author_tag(), expected);
     }
-
 }

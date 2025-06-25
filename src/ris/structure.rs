@@ -37,7 +37,7 @@ impl RawRisData {
 
     /// Add a tag-value pair to the data.
     pub(crate) fn add_data(&mut self, tag: RisTag, value: String) {
-        self.data.entry(tag).or_insert_with(Vec::new).push(value);
+        self.data.entry(tag).or_default().push(value);
     }
 
     /// Add an author to the authors list.
@@ -104,7 +104,7 @@ impl TryFrom<RawRisData> for crate::Citation {
     type Error = CitationError;
 
     fn try_from(mut raw: RawRisData) -> Result<Self, Self::Error> {
-        let citation_type = raw.remove(&RisTag::Type).unwrap_or_else(Vec::new);
+        let citation_type = raw.remove(&RisTag::Type).unwrap_or_default();
 
         let title = raw
             .get_first(&RisTag::Title)
@@ -187,9 +187,9 @@ impl TryFrom<RawRisData> for crate::Citation {
         raw.remove(&RisTag::Abstract);
         raw.remove(&RisTag::AbstractAlternative);
 
-        let keywords = raw.remove(&RisTag::Keywords).unwrap_or_else(Vec::new);
+        let keywords = raw.remove(&RisTag::Keywords).unwrap_or_default();
 
-        let issn = raw.remove(&RisTag::SerialNumber).unwrap_or_else(Vec::new);
+        let issn = raw.remove(&RisTag::SerialNumber).unwrap_or_default();
 
         // Collect URLs from various link fields and extract DOI if not already found
         let mut urls = Vec::new();
@@ -334,7 +334,11 @@ mod tests {
         let citation: crate::Citation = raw.try_into().unwrap();
         assert_eq!(citation.doi, Some("10.1234/example".to_string()));
         assert_eq!(citation.urls.len(), 2);
-        assert!(citation.urls.contains(&"https://doi.org/10.1234/example".to_string()));
+        assert!(
+            citation
+                .urls
+                .contains(&"https://doi.org/10.1234/example".to_string())
+        );
     }
 
     #[test]
