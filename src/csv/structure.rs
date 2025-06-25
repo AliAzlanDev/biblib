@@ -244,7 +244,7 @@ impl TryFrom<RawCsvData> for crate::Citation {
 
     fn try_from(raw: RawCsvData) -> Result<Self, Self::Error> {
         // Use default config for backward compatibility
-        // Note: This won't properly populate extra_fields, use into_citation_with_config instead
+        // Note: This uses default field mappings; use into_citation_with_config for custom mappings
         let config = CsvConfig::new();
         raw.into_citation_with_config(&config)
     }
