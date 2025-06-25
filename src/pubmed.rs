@@ -24,6 +24,7 @@ mod parse;
 mod split;
 mod structure;
 mod tags;
+mod whole_lines;
 
 use crate::pubmed::parse::pubmed_parse;
 use crate::{Citation, CitationParser, Result};
