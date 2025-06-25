@@ -20,7 +20,7 @@ pub(crate) const DEFAULT_HEADERS: &[(&str, &[&str])] = &[
     ("doi", &["doi", "digital object identifier"]),
     ("abstract", &["abstract", "summary"]),
     ("keywords", &["keywords", "tags"]),
-    ("issn", &["issn", "isbn"]),
+    ("issn", &["issn"]),
     ("language", &["language", "lang"]),
     ("publisher", &["publisher"]),
     ("url", &["url", "link", "web link"]),
@@ -243,10 +243,7 @@ mod tests {
         let mut config = CsvConfig::new();
         config.set_header_mapping("title", vec!["my_title".to_string()]);
 
-        assert_eq!(
-            config.get_field_for_header("my_title"),
-            Some("title")
-        );
+        assert_eq!(config.get_field_for_header("my_title"), Some("title"));
     }
 
     #[test]
@@ -255,30 +252,18 @@ mod tests {
         config.add_header_aliases("title", vec!["article_name".to_string()]);
 
         // Should still recognize default aliases
-        assert_eq!(
-            config.get_field_for_header("title"),
-            Some("title")
-        );
+        assert_eq!(config.get_field_for_header("title"), Some("title"));
 
         // Should also recognize new alias
-        assert_eq!(
-            config.get_field_for_header("article_name"),
-            Some("title")
-        );
+        assert_eq!(config.get_field_for_header("article_name"), Some("title"));
     }
 
     #[test]
     fn test_get_field_for_header_case_insensitive() {
         let config = CsvConfig::new();
 
-        assert_eq!(
-            config.get_field_for_header("TITLE"),
-            Some("title")
-        );
-        assert_eq!(
-            config.get_field_for_header("Title"),
-            Some("title")
-        );
+        assert_eq!(config.get_field_for_header("TITLE"), Some("title"));
+        assert_eq!(config.get_field_for_header("Title"), Some("title"));
     }
 
     #[test]

@@ -123,7 +123,10 @@ impl RawCsvData {
     }
 
     /// Convert to Citation with proper extra fields handling
-    pub(crate) fn into_citation_with_config(self, config: &CsvConfig) -> Result<crate::Citation, CitationError> {
+    pub(crate) fn into_citation_with_config(
+        self,
+        config: &CsvConfig,
+    ) -> Result<crate::Citation, CitationError> {
         let title = self
             .get_field("title")
             .cloned()

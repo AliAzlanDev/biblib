@@ -81,7 +81,7 @@ use parse::csv_parse;
 /// let input = "Title,Author,Custom Field\nPaper,Smith,Custom Value";
 /// let parser = CsvParser::new();
 /// let citations = parser.parse(input).unwrap();
-/// 
+///
 /// assert!(citations[0].extra_fields.contains_key("Custom Field"));
 /// ```
 #[derive(Debug, Clone)]
@@ -194,7 +194,6 @@ impl CitationParser for CsvParser {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::CitationError;
@@ -278,7 +277,7 @@ Second Paper,Doe J,2024,Test,Data";
         let citations = parser.parse(input).unwrap();
 
         assert_eq!(citations.len(), 2);
-        
+
         // Check that extra fields are properly captured
         let first_citation = &citations[0];
         assert!(first_citation.extra_fields.contains_key("Custom Field"));
@@ -298,7 +297,7 @@ Another Paper;Doe J;2024";
 
         let parser = CsvParser::with_auto_detection();
         let citations = parser.parse(input).unwrap();
-        
+
         assert_eq!(citations.len(), 2);
         assert_eq!(citations[0].title, "Test Paper");
         assert_eq!(citations[0].authors[0].family_name, "Smith");
@@ -315,15 +314,15 @@ Another Paper,Doe J,2024";
         let mut config = CsvConfig::new();
         config.set_store_original_record(false);
         let parser = CsvParser::with_config(config);
-        
+
         let citations = parser.parse(input).unwrap();
         assert_eq!(citations.len(), 2);
-        
+
         // Test with original record storage enabled
         let mut config2 = CsvConfig::new();
         config2.set_store_original_record(true);
         let parser2 = CsvParser::with_config(config2);
-        
+
         let citations2 = parser2.parse(input).unwrap();
         assert_eq!(citations2.len(), 2);
     }
@@ -333,15 +332,15 @@ Another Paper,Doe J,2024";
         // Test empty field name validation
         let mut config = CsvConfig::new();
         config.set_header_mapping("", vec!["test".to_string()]);
-        
+
         let parser = CsvParser::with_config(config);
         let result = parser.parse("test\nvalue");
         assert!(result.is_err());
-        
+
         // Test invalid delimiter validation
         let mut config2 = CsvConfig::new();
         config2.set_delimiter(b'\n');
-        
+
         let parser2 = CsvParser::with_config(config2);
         let result2 = parser2.parse("test,value\ntest2,value2");
         assert!(result2.is_err());
@@ -353,9 +352,12 @@ Another Paper,Doe J,2024";
         let inputs = vec![
             ("title,doi,volume\nTest Article,10.1234/test,5", "title"),
             ("Title,Publication Year,Volume\nTest,2023,5", "title"),
-            ("article title,authors,year\nTest Paper,Smith J,2023", "title"),
+            (
+                "article title,authors,year\nTest Paper,Smith J,2023",
+                "title",
+            ),
         ];
-        
+
         for (input, _expected_field) in inputs {
             let parser = CsvParser::with_auto_detection();
             let citations = parser.parse(input).unwrap();

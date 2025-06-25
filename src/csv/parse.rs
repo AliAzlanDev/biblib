@@ -167,14 +167,16 @@ pub fn detect_csv_headers(content: &str, delimiter: u8) -> bool {
     let first_line_text_ratio = first_line_fields
         .iter()
         .filter(|f| !f.trim().is_empty())
-        .filter(|f| !f.parse::<f64>().is_ok() && f.len() > 3)
-        .count() as f64 / first_line_fields.len().max(1) as f64;
+        .filter(|f| f.parse::<f64>().is_err() && f.len() > 3)
+        .count() as f64
+        / first_line_fields.len().max(1) as f64;
 
     let second_line_numeric_ratio = second_line_fields
         .iter()
         .filter(|f| !f.trim().is_empty())
         .filter(|f| f.parse::<f64>().is_ok() || f.len() <= 3)
-        .count() as f64 / second_line_fields.len().max(1) as f64;
+        .count() as f64
+        / second_line_fields.len().max(1) as f64;
 
     // If first line has more text-like fields and second line has more data-like fields,
     // likely has headers
