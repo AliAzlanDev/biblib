@@ -65,46 +65,41 @@ impl RawRisData {
         !self.data.is_empty() || !self.authors.is_empty()
     }
 
-    /// Get the best journal name based on tag priority.
-    pub(crate) fn get_best_journal(&self) -> Option<String> {
-        let mut best_journal = None;
+    /// Generic helper method to select the best value based on tag priority.
+    ///
+    /// # Arguments
+    /// * `priority_fn` - A function that extracts the priority from a RisTag, returning None if the tag is not relevant
+    fn get_best_value_by_priority<F>(&self, priority_fn: F) -> Option<String>
+    where
+        F: Fn(&RisTag) -> Option<u8>,
+    {
+        let mut best_value = None;
         let mut best_priority = u8::MAX;
 
         for (tag, values) in &self.data {
-            if let Some(priority) = tag.journal_priority() {
+            if let Some(priority) = priority_fn(tag) {
                 if priority < best_priority && !values.is_empty() {
                     if let Some(first_value) = values.first() {
                         if !first_value.trim().is_empty() {
                             best_priority = priority;
-                            best_journal = Some(first_value.clone());
+                            best_value = Some(first_value.clone());
                         }
                     }
                 }
             }
         }
 
-        best_journal
+        best_value
+    }
+
+    /// Get the best journal name based on tag priority.
+    pub(crate) fn get_best_journal(&self) -> Option<String> {
+        self.get_best_value_by_priority(|tag| tag.journal_priority())
     }
 
     /// Get the best journal abbreviation based on tag priority.
     pub(crate) fn get_best_journal_abbr(&self) -> Option<String> {
-        let mut best_abbr = None;
-        let mut best_priority = u8::MAX;
-
-        for (tag, values) in &self.data {
-            if let Some(priority) = tag.journal_abbr_priority() {
-                if priority < best_priority && !values.is_empty() {
-                    if let Some(first_value) = values.first() {
-                        if !first_value.trim().is_empty() {
-                            best_priority = priority;
-                            best_abbr = Some(first_value.clone());
-                        }
-                    }
-                }
-            }
-        }
-
-        best_abbr
+        self.get_best_value_by_priority(|tag| tag.journal_abbr_priority())
     }
 }
 
@@ -158,7 +153,10 @@ impl crate::Citation {
         let title = raw
             .get_first(&RisTag::Title)
             .filter(|s| !s.trim().is_empty())
-            .or_else(|| raw.get_first(&RisTag::TitleAlternative).filter(|s| !s.trim().is_empty()))
+            .or_else(|| {
+                raw.get_first(&RisTag::TitleAlternative)
+                    .filter(|s| !s.trim().is_empty())
+            })
             .cloned()
             .ok_or_else(|| CitationError::MissingField("title".to_string()))?;
 
@@ -424,15 +422,15 @@ mod tests {
         raw.add_data(RisTag::Type, "JOUR".to_string());
         raw.add_data(RisTag::Title, "".to_string());
         raw.add_data(RisTag::TitleAlternative, "Fallback Title".to_string());
-        
+
         let citation: crate::Citation = raw.try_into().unwrap();
         assert_eq!(citation.title, "Fallback Title");
-        
+
         // Test fallback works when primary title is completely missing
         let mut raw2 = RawRisData::new();
         raw2.add_data(RisTag::Type, "JOUR".to_string());
         raw2.add_data(RisTag::TitleAlternative, "Fallback Title".to_string());
-        
+
         let citation2: crate::Citation = raw2.try_into().unwrap();
         assert_eq!(citation2.title, "Fallback Title");
 
@@ -441,7 +439,7 @@ mod tests {
         raw3.add_data(RisTag::Type, "JOUR".to_string());
         raw3.add_data(RisTag::Title, "   ".to_string());
         raw3.add_data(RisTag::TitleAlternative, "Fallback Title".to_string());
-        
+
         let citation3: crate::Citation = raw3.try_into().unwrap();
         assert_eq!(citation3.title, "Fallback Title");
     }
@@ -458,10 +456,21 @@ mod tests {
 
         let citation: crate::Citation = raw.try_into().unwrap();
         // Should handle malformed DOIs gracefully - no DOI should be extracted
-        assert_eq!(citation.doi, None, "Should not extract DOI from malformed URLs");
+        assert_eq!(
+            citation.doi, None,
+            "Should not extract DOI from malformed URLs"
+        );
         assert_eq!(citation.urls.len(), 2, "Should still preserve all URLs");
-        assert!(citation.urls.contains(&"https://malformed-doi-url".to_string()));
-        assert!(citation.urls.contains(&"https://doi.org/malformed".to_string()));
+        assert!(
+            citation
+                .urls
+                .contains(&"https://malformed-doi-url".to_string())
+        );
+        assert!(
+            citation
+                .urls
+                .contains(&"https://doi.org/malformed".to_string())
+        );
     }
 
     #[test]
@@ -472,6 +481,9 @@ mod tests {
         raw.add_data(RisTag::JournalFullAlternative, "Alt Journal".to_string());
 
         // Should skip empty values and pick the next priority
-        assert_eq!(raw.get_best_journal(), Some("Secondary Journal".to_string()));
+        assert_eq!(
+            raw.get_best_journal(),
+            Some("Secondary Journal".to_string())
+        );
     }
 }

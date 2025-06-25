@@ -62,7 +62,7 @@
 //! // PubMed format
 //! let pubmed = PubMedParser::new();
 //!
-//! // EndNote XML
+//! // EndNote XML format
 //! let endnote = EndNoteXmlParser::new();
 //!
 //! // CSV format
@@ -284,6 +284,13 @@ pub struct Citation {
     pub extra_fields: HashMap<String, Vec<String>>,
 }
 
+impl Citation {
+    /// Create a new empty Citation.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 /// Represents a group of duplicate citations with one unique citation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DuplicateGroup {
@@ -349,9 +356,8 @@ pub fn detect_and_parse(content: &str) -> Result<(Vec<Citation>, &'static str)> 
         #[cfg(feature = "xml")]
         {
             let parser = EndNoteXmlParser::new();
-            return parser
-                .parse(content)
-                .map(|citations| (citations, "EndNote XML"));
+            let citations = parser.parse(content)?;
+            return Ok((citations, "EndNote XML"));
         }
         #[cfg(not(feature = "xml"))]
         return Err(CitationError::Other(
