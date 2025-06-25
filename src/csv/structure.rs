@@ -21,10 +21,8 @@ pub(crate) struct RawCsvData {
     /// ISSN values parsed from ISSN fields
     pub(crate) issn: Vec<String>,
     /// Line number for error reporting
-    #[allow(dead_code)]
     pub(crate) line_number: usize,
     /// Original record for debugging (optional for memory efficiency)
-    #[allow(dead_code)]
     pub(crate) original_record: Option<Vec<String>>,
 }
 
@@ -221,16 +219,20 @@ fn is_standard_field(field_name: &str, config: &CsvConfig) -> bool {
         "title",
         "authors",
         "journal",
+        "journal_abbr",
         "year",
         "volume",
         "issue",
         "pages",
         "doi",
+        "pmid",
+        "pmc_id",
         "abstract",
         "keywords",
         "issn",
         "language",
         "publisher",
+        "type",
         "url",
     ];
 
