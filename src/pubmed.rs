@@ -21,11 +21,14 @@
 
 mod author;
 mod parse;
+mod split;
 mod structure;
 mod tags;
+mod whole_lines;
 
 use crate::pubmed::parse::pubmed_parse;
 use crate::{Citation, CitationParser, Result};
+use itertools::Itertools;
 
 /// Parser for PubMed format citations.
 ///
@@ -64,9 +67,10 @@ impl CitationParser for PubMedParser {
     ///
     /// Returns `CitationError` if the input is malformed
     fn parse(&self, input: &str) -> Result<Vec<Citation>> {
-        let raw_data = pubmed_parse(input);
-        let citation = raw_data.try_into()?;
-        Ok(vec![citation])
+        pubmed_parse(input)
+            .into_iter()
+            .map(|x| x.try_into())
+            .try_collect()
     }
 }
 
@@ -103,6 +107,25 @@ MH- Keyword2
         assert_eq!(date.year, 2023);
         assert_eq!(date.month, Some(1));
         assert_eq!(date.day, Some(23));
+    }
+
+    #[test]
+    fn test_parse_three_citations() {
+        let input = r#"PMID- 123
+TI- One
+
+PMID- 456
+TI- Two
+
+PMID- 789
+TI- Three
+"#;
+        let parser = PubMedParser::new();
+        let result = parser.parse(input).unwrap();
+        let titles = result.iter().map(|c| c.title.as_str()).collect_vec();
+        assert_eq!(titles, &["One", "Two", "Three"]);
+        let pmids = result.iter().map(|c| c.pmid.as_deref()).collect_vec();
+        assert_eq!(pmids, &[Some("123"), Some("456"), Some("789")])
     }
 
     #[test]
