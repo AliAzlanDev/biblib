@@ -34,7 +34,7 @@ fn extract_text_with_position<B: BufRead>(
                 text.push_str(&e.unescape().map_err(|e| {
                     let line_num = buffer_position_to_line_number(content, current_pos);
                     CitationError::InvalidFormat(format!(
-                        "Invalid XML text content at line {}: {}", 
+                        "Invalid XML text content at line {}: {}",
                         line_num, e
                     ))
                 })?);
@@ -50,7 +50,7 @@ fn extract_text_with_position<B: BufRead>(
             Err(e) => {
                 let line_num = buffer_position_to_line_number(content, current_pos);
                 return Err(CitationError::InvalidFormat(format!(
-                    "XML parsing error at line {}: {}", 
+                    "XML parsing error at line {}: {}",
                     line_num, e
                 )));
             }
@@ -184,7 +184,10 @@ fn extract_date_from_year_element<B: BufRead>(
     if year_val.is_none() {
         let mut local_buf = Vec::new();
         let start_pos = reader.buffer_position() as usize;
-        if let Ok(year) = extract_text_with_position(reader, &mut local_buf, b"year", content, start_pos)?.parse::<i32>() {
+        if let Ok(year) =
+            extract_text_with_position(reader, &mut local_buf, b"year", content, start_pos)?
+                .parse::<i32>()
+        {
             year_val = Some(year);
         }
     } else {
@@ -282,7 +285,8 @@ fn parse_record<B: BufRead>(
                     citation.urls.push(url);
                 }
                 b"year" => {
-                    let (year_val, month_val, day_val) = extract_date_from_year_element(reader, e, content)?;
+                    let (year_val, month_val, day_val) =
+                        extract_date_from_year_element(reader, e, content)?;
                     citation.date = crate::utils::parse_endnote_date(year_val, month_val, day_val);
                     // For backward compatibility, also set the deprecated year field
                     #[allow(deprecated)]

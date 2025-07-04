@@ -2,11 +2,11 @@ use crate::pubmed::author::{ConsecutiveTag, resolve_authors};
 use crate::pubmed::split::BlankLineSplit;
 use crate::pubmed::structure::RawPubmedData;
 use crate::pubmed::tags::PubmedTag;
+use crate::pubmed::whole_lines::WholeLinesIter;
 use crate::utils::newline_delimiter_of;
 use either::{Either, Left, Right};
 use itertools::Itertools;
 use std::collections::HashMap;
-use crate::pubmed::whole_lines::WholeLinesIter;
 
 /// Parse the content of a PubMed formatted .nbib file, returning its key-value pairs
 /// in a [HashMap] (with the order of duplicate values preserved in the [Vec] values)
@@ -79,7 +79,7 @@ fn split_on_dash(line: &str) -> Option<(&str, &str)> {
 mod tests {
     use super::*;
     use rstest::*;
-    
+
     #[rstest]
     #[case("", Left(""))]
     #[case("DNE - tag does not exist", Left("DNE - tag does not exist"))]
