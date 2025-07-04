@@ -136,7 +136,6 @@
 //! The deduplicator supports parallel processing through the `run_in_parallel` option.
 
 #[cfg(feature = "xml")]
-use quick_xml::events::attributes::AttrError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
@@ -150,6 +149,7 @@ pub mod csv;
 pub mod dedupe;
 #[cfg(feature = "xml")]
 pub mod endnote_xml;
+pub mod error;
 #[cfg(feature = "pubmed")]
 pub mod pubmed;
 #[cfg(feature = "ris")]
@@ -160,6 +160,7 @@ pub mod ris;
 pub use csv::CsvParser;
 #[cfg(feature = "xml")]
 pub use endnote_xml::EndNoteXmlParser;
+pub use error::{CitationError, ParseError, ValueError};
 #[cfg(feature = "pubmed")]
 pub use pubmed::PubMedParser;
 #[cfg(feature = "ris")]
@@ -168,49 +169,31 @@ pub use ris::RisParser;
 mod regex;
 mod utils;
 
-/// A specialized Result type for citation operations.
-pub type Result<T> = std::result::Result<T, CitationError>;
-
-/// Represents errors that can occur during citation parsing.
-#[derive(Error, Debug)]
-pub enum CitationError {
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-
-    #[error("Parse error: {0}")]
-    InvalidFormat(String),
-
-    #[error("Missing required field: {0}")]
-    MissingField(String),
-
-    #[error("Invalid field value: {field} - {message}")]
-    InvalidFieldValue { field: String, message: String },
-
-    #[error("Malformed input: {message} at line {line}")]
-    MalformedInput { message: String, line: usize },
-
-    #[error("Error: {0}")]
-    Other(String),
+/// Citation format types supported by the library.
+#[derive(Error, Debug, Clone, PartialEq)]
+pub enum CitationFormat {
+    #[error("RIS")]
+    Ris,
+    #[error("PubMed")]
+    PubMed,
+    #[error("EndNote XML")]
+    EndNoteXml,
+    #[error("CSV")]
+    Csv,
+    #[error("Unknown")]
+    Unknown,
 }
 
-// Add From implementations for common error types
-#[cfg(feature = "csv")]
-impl From<csv_crate::Error> for CitationError {
-    fn from(err: csv_crate::Error) -> Self {
-        CitationError::InvalidFormat(err.to_string())
-    }
-}
-#[cfg(feature = "xml")]
-impl From<quick_xml::Error> for CitationError {
-    fn from(err: quick_xml::Error) -> Self {
-        CitationError::InvalidFormat(err.to_string())
-    }
-}
-
-#[cfg(feature = "xml")]
-impl From<AttrError> for CitationError {
-    fn from(err: AttrError) -> Self {
-        CitationError::InvalidFormat(err.to_string())
+impl CitationFormat {
+    /// Convert the format to a string representation.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            CitationFormat::Ris => "RIS",
+            CitationFormat::PubMed => "PubMed",
+            CitationFormat::EndNoteXml => "EndNote XML",
+            CitationFormat::Csv => "CSV",
+            CitationFormat::Unknown => "Unknown",
+        }
     }
 }
 
@@ -310,12 +293,12 @@ pub trait CitationParser {
     ///
     /// # Returns
     ///
-    /// A Result containing a vector of parsed Citations or a CitationError
+    /// A Result containing a vector of parsed Citations or a ParseError
     ///
     /// # Errors
     ///
-    /// Returns `CitationError` if the input is malformed
-    fn parse(&self, input: &str) -> Result<Vec<Citation>>;
+    /// Returns `ParseError` if the input is malformed
+    fn parse(&self, input: &str) -> std::result::Result<Vec<Citation>, crate::error::ParseError>;
 }
 
 /// Format detection and automatic parsing of citation files
@@ -339,15 +322,16 @@ pub trait CitationParser {
 /// ER  -"#;
 ///
 /// let (citations, format) = detect_and_parse(content).unwrap();
-/// assert_eq!(format, "RIS");
+/// assert_eq!(format.as_str(), "RIS");
 /// assert_eq!(citations[0].title, "Example Title");
 /// ```
-pub fn detect_and_parse(content: &str) -> Result<(Vec<Citation>, &'static str)> {
+pub fn detect_and_parse(
+    content: &str,
+) -> std::result::Result<(Vec<Citation>, CitationFormat), CitationError> {
     let trimmed = content.trim();
 
-    // Empty content check
     if trimmed.is_empty() {
-        return Err(CitationError::InvalidFormat("Empty content".into()));
+        return Ok((Vec::new(), CitationFormat::Unknown));
     }
 
     // Try to detect format based on content patterns
@@ -356,13 +340,13 @@ pub fn detect_and_parse(content: &str) -> Result<(Vec<Citation>, &'static str)> 
         #[cfg(feature = "xml")]
         {
             let parser = EndNoteXmlParser::new();
-            let citations = parser.parse(content)?;
-            return Ok((citations, "EndNote XML"));
+            let citations = parser
+                .parse(content)
+                .map_err(|parse_err| CitationError::Parse(parse_err))?;
+            return Ok((citations, CitationFormat::EndNoteXml));
         }
         #[cfg(not(feature = "xml"))]
-        return Err(CitationError::Other(
-            "EndNote XML support not enabled".into(),
-        ));
+        return Err(CitationError::UnknownFormat);
     }
 
     // Check for RIS format (starts with TY or has TY  - pattern)
@@ -370,10 +354,13 @@ pub fn detect_and_parse(content: &str) -> Result<(Vec<Citation>, &'static str)> 
         #[cfg(feature = "ris")]
         {
             let parser = RisParser::new();
-            return parser.parse(content).map(|citations| (citations, "RIS"));
+            return parser
+                .parse(content)
+                .map(|citations| (citations, CitationFormat::Ris))
+                .map_err(|parse_err| CitationError::Parse(parse_err));
         }
         #[cfg(not(feature = "ris"))]
-        return Err(CitationError::Other("RIS support not enabled".into()));
+        return Err(CitationError::UnknownFormat);
     }
 
     // Check for PubMed format (starts with PMID- or has PMID- pattern)
@@ -381,27 +368,21 @@ pub fn detect_and_parse(content: &str) -> Result<(Vec<Citation>, &'static str)> 
         #[cfg(feature = "pubmed")]
         {
             let parser = PubMedParser::new();
-            return parser.parse(content).map(|citations| (citations, "PubMed"));
+            return parser
+                .parse(content)
+                .map(|citations| (citations, CitationFormat::PubMed))
+                .map_err(|parse_err| CitationError::Parse(parse_err));
         }
         #[cfg(not(feature = "pubmed"))]
-        return Err(CitationError::Other("PubMed support not enabled".into()));
+        return Err(CitationError::UnknownFormat);
     }
 
-    Err(CitationError::InvalidFormat(
-        "Unable to detect citation format".into(),
-    ))
+    Err(CitationError::UnknownFormat)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_citation_error_display() {
-        let error = CitationError::InvalidFormat("Invalid line".to_string());
-        assert_eq!(error.to_string(), "Parse error: Invalid line");
-    }
-
     #[test]
     fn test_author_equality() {
         let author1 = Author {
@@ -425,7 +406,7 @@ AU  - Smith, John
 ER  -"#;
 
         let (citations, format) = detect_and_parse(content).unwrap();
-        assert_eq!(format, "RIS");
+        assert_eq!(format, CitationFormat::Ris);
         assert_eq!(citations[0].title, "Test Title");
     }
 
@@ -436,7 +417,7 @@ TI  - Test Title
 FAU - Smith, John"#;
 
         let (citations, format) = detect_and_parse(content).unwrap();
-        assert_eq!(format, "PubMed");
+        assert_eq!(format, CitationFormat::PubMed);
         assert_eq!(citations[0].title, "Test Title");
     }
 
@@ -448,20 +429,22 @@ FAU - Smith, John"#;
 </record></records></xml>"#;
 
         let (citations, format) = detect_and_parse(content).unwrap();
-        assert_eq!(format, "EndNote XML");
+        assert_eq!(format, CitationFormat::EndNoteXml);
         assert_eq!(citations[0].title, "Test Title");
     }
 
     #[test]
     fn test_detect_and_parse_empty() {
         let result = detect_and_parse("");
-        assert!(matches!(result, Err(CitationError::InvalidFormat(_))));
+        assert!(
+            matches!(result, Ok((citations, format)) if citations.is_empty() && format == CitationFormat::Unknown)
+        );
     }
 
     #[test]
     fn test_detect_and_parse_unknown() {
         let content = "Some random content\nthat doesn't match\nany known format";
         let result = detect_and_parse(content);
-        assert!(matches!(result, Err(CitationError::InvalidFormat(_))));
+        assert!(matches!(result, Err(CitationError::UnknownFormat)));
     }
 }
