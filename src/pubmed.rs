@@ -26,8 +26,9 @@ mod structure;
 mod tags;
 mod whole_lines;
 
+use crate::error::ParseError;
 use crate::pubmed::parse::pubmed_parse;
-use crate::{Citation, CitationParser, Result};
+use crate::{Citation, CitationParser};
 use itertools::Itertools;
 
 /// Parser for PubMed format citations.
@@ -61,12 +62,17 @@ impl CitationParser for PubMedParser {
     ///
     /// # Returns
     ///
-    /// A Result containing a vector of parsed Citations or a CitationError
+    /// A Result containing a vector of parsed Citations or a ParseError
     ///
     /// # Errors
     ///
-    /// Returns `CitationError` if the input is malformed
-    fn parse(&self, input: &str) -> Result<Vec<Citation>> {
+    /// Returns `ParseError` if the input is malformed
+    fn parse(&self, input: &str) -> Result<Vec<Citation>, ParseError> {
+        // Handle empty input by returning empty vector
+        if input.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+
         pubmed_parse(input)
             .into_iter()
             .map(|x| x.try_into())
@@ -262,5 +268,19 @@ AU  - Van Dyke MCC
             Some("This is a long abstract that spans multiple lines for testing purposes.")
         );
         assert_eq!(citation.authors.len(), 1);
+    }
+
+    #[test]
+    fn test_empty_input() {
+        let parser = PubMedParser::new();
+        let result = parser.parse("").unwrap();
+        assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    fn test_whitespace_only_input() {
+        let parser = PubMedParser::new();
+        let result = parser.parse("   \n  \t  ").unwrap();
+        assert_eq!(result.len(), 0);
     }
 }

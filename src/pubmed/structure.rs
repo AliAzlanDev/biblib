@@ -1,7 +1,8 @@
+use crate::error::{ParseError, ValueError, fields};
 use crate::pubmed::author::PubmedAuthor;
 use crate::pubmed::tags::PubmedTag;
 use crate::utils::parse_pubmed_date;
-use crate::{CitationError, Date};
+use crate::{CitationFormat, Date};
 use std::collections::HashMap;
 
 /// Structured raw data from a PubMed formatted .nbib file.
@@ -15,12 +16,12 @@ pub(crate) struct RawPubmedData {
 }
 
 impl TryFrom<RawPubmedData> for crate::Citation {
-    type Error = CitationError;
+    type Error = ParseError;
     fn try_from(
         RawPubmedData {
             mut data,
             authors,
-            ignored_lines,
+            ignored_lines: _,
         }: RawPubmedData,
     ) -> Result<Self, Self::Error> {
         // unresolved question: what should we do if multiple values are found for
@@ -42,7 +43,15 @@ impl TryFrom<RawPubmedData> for crate::Citation {
             title: data
                 .remove(&PubmedTag::Title)
                 .and_then(join_if_some)
-                .ok_or_else(|| CitationError::MissingField("title".to_string()))?,
+                .ok_or_else(|| {
+                    ParseError::without_position(
+                        CitationFormat::PubMed,
+                        ValueError::MissingValue {
+                            field: fields::TITLE,
+                            key: "TI",
+                        },
+                    )
+                })?,
             authors: authors.into_iter().map(|a| a.into()).collect(),
             journal: data
                 .remove(&PubmedTag::FullJournalTitle)
@@ -94,11 +103,18 @@ fn join_if_some(v: Vec<String>) -> Option<String> {
 }
 
 /// Wraps [parse_pubmed_date] to change its types.
-fn parse_pubmed_date_err<S: AsRef<str>>(date: S) -> Result<Date, CitationError> {
+fn parse_pubmed_date_err<S: AsRef<str>>(date: S) -> Result<Date, ParseError> {
     let s = date.as_ref();
-    parse_pubmed_date(s).ok_or_else(|| CitationError::InvalidFieldValue {
-        field: "date".to_string(),
-        message: format!("\"{s}\" is not a valid date in YYYY MMM D format"),
+    parse_pubmed_date(s).ok_or_else(|| {
+        ParseError::without_position(
+            CitationFormat::PubMed,
+            ValueError::BadValue {
+                field: fields::DATE,
+                key: "DP",
+                value: s.to_string(),
+                reason: "not a valid date in YYYY MMM D format".to_string(),
+            },
+        )
     })
 }
 
