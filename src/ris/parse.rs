@@ -5,14 +5,17 @@
 use crate::ris::structure::RawRisData;
 use crate::ris::tags::RisTag;
 use crate::utils::parse_author_name;
-use crate::{Author, CitationError, Result};
+use crate::{
+    Author, CitationFormat,
+    error::{ParseError, ValueError},
+};
 
 /// Parse the content of a RIS formatted file, returning structured data.
-pub(crate) fn ris_parse<S: AsRef<str>>(ris_text: S) -> Result<Vec<RawRisData>> {
+pub(crate) fn ris_parse<S: AsRef<str>>(ris_text: S) -> Result<Vec<RawRisData>, ParseError> {
     let text = ris_text.as_ref();
 
     if text.trim().is_empty() {
-        return Err(CitationError::InvalidFormat("Empty input".into()));
+        return Ok(Vec::new());
     }
 
     let mut citations = Vec::new();
@@ -73,35 +76,35 @@ pub(crate) fn ris_parse<S: AsRef<str>>(ris_text: S) -> Result<Vec<RawRisData>> {
     }
 
     if citations.is_empty() {
-        return Err(CitationError::InvalidFormat(
-            "No valid citations found".into(),
-        ));
+        return Ok(Vec::new());
     }
 
     Ok(citations)
 }
 
 /// Parse a single RIS line into a tag and content.
-fn parse_ris_line(line: &str, line_number: usize) -> Result<(RisTag, String)> {
+fn parse_ris_line(line: &str, line_number: usize) -> Result<(RisTag, String), ParseError> {
     // Validate minimum line length
     if line.len() < 2 {
-        return Err(CitationError::MalformedInput {
-            message: format!(
+        return Err(ParseError::at_line(
+            line_number,
+            CitationFormat::Ris,
+            ValueError::Syntax(format!(
                 "Line too short for RIS format (minimum 2 chars): '{}'",
                 line
-            ),
-            line: line_number,
-        });
+            )),
+        ));
     }
 
     let tag_str = &line[..2];
 
     // Validate tag format
     if !tag_str.chars().all(|c| c.is_ascii_alphanumeric()) {
-        return Err(CitationError::MalformedInput {
-            message: format!("Invalid RIS tag format: '{}'", tag_str),
-            line: line_number,
-        });
+        return Err(ParseError::at_line(
+            line_number,
+            CitationFormat::Ris,
+            ValueError::Syntax(format!("Invalid RIS tag format: '{}'", tag_str)),
+        ));
     }
 
     let tag = RisTag::from_tag(tag_str);
@@ -113,7 +116,7 @@ fn parse_ris_line(line: &str, line_number: usize) -> Result<(RisTag, String)> {
 }
 
 /// Extract content from a RIS line, handling various format patterns.
-fn extract_ris_content(line: &str, line_number: usize) -> Result<String> {
+fn extract_ris_content(line: &str, line_number: usize) -> Result<String, ParseError> {
     // Standard format: "TY  - JOUR"
     if line.len() >= 6 && &line[2..6] == "  - " {
         return Ok(line[6..].trim().to_string());
@@ -143,13 +146,14 @@ fn extract_ris_content(line: &str, line_number: usize) -> Result<String> {
     }
 
     // If we reach here, the line doesn't have a proper separator
-    Err(CitationError::MalformedInput {
-        message: format!(
+    Err(ParseError::at_line(
+        line_number,
+        CitationFormat::Ris,
+        ValueError::Syntax(format!(
             "RIS line missing proper separator (space or dash) after tag: '{}'",
             line
-        ),
-        line: line_number,
-    })
+        )),
+    ))
 }
 
 /// Parse an author string into an Author struct.
@@ -280,8 +284,8 @@ ER  -"#;
 
     #[test]
     fn test_parse_empty_input() {
-        let result = ris_parse("");
-        assert!(matches!(result, Err(CitationError::InvalidFormat(_))));
+        let result = ris_parse("").unwrap();
+        assert!(result.is_empty());
     }
 
     #[test]
@@ -289,8 +293,8 @@ ER  -"#;
         let input = r#"Record #1 of 0
 Provider: Test Provider"#;
 
-        let result = ris_parse(input);
-        assert!(matches!(result, Err(CitationError::InvalidFormat(_))));
+        let result = ris_parse(input).unwrap();
+        assert!(result.is_empty());
     }
 
     #[test]

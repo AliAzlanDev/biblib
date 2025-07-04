@@ -23,7 +23,7 @@ mod parse;
 mod structure;
 mod tags;
 
-use crate::{Citation, CitationParser, Result};
+use crate::{Citation, CitationParser};
 use parse::ris_parse;
 
 /// Parser for RIS format citations.
@@ -61,8 +61,8 @@ impl CitationParser for RisParser {
     ///
     /// # Errors
     ///
-    /// Returns `CitationError` if the input is malformed or contains no valid citations
-    fn parse(&self, input: &str) -> Result<Vec<Citation>> {
+    /// Returns `ParseError` if the input is malformed or contains no valid citations
+    fn parse(&self, input: &str) -> std::result::Result<Vec<Citation>, crate::error::ParseError> {
         let raw_citations = ris_parse(input)?;
 
         let mut citations = Vec::with_capacity(raw_citations.len());
