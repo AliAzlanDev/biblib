@@ -135,7 +135,6 @@
 //! All parser implementations are thread-safe and can be shared between threads.
 //! The deduplicator supports parallel processing through the `run_in_parallel` option.
 
-#[cfg(feature = "xml")]
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
