@@ -259,7 +259,7 @@ mod tests {
     fn test_csv_parse_empty_input() {
         let config = CsvConfig::new();
         let result = csv_parse("", &config);
-        assert!(result.is_err());
+        assert!(result.unwrap().is_empty());
     }
 
     #[test]

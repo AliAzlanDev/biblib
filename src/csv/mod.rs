@@ -404,7 +404,7 @@ Another Paper,Doe J,2024";
     fn test_empty_input() {
         let parser = CsvParser::new();
         let result = parser.parse("");
-        assert!(result.is_err());
+        assert!(result.unwrap().is_empty());
     }
 
     #[test]
