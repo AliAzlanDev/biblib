@@ -119,9 +119,9 @@
 //! let result = RisParser::new().parse("invalid input");
 //! match result {
 //!     Ok(citations) => println!("Parsed {} citations", citations.len()),
-//!     Err(CitationError::InvalidFormat(msg)) => eprintln!("Parse error: {}", msg),
-//!     Err(e) => eprintln!("Other error: {}", e),
+//!     Err(e) => eprintln!("Parse error: {}", e),
 //! }
+//! ```
 //! ```
 //!
 //! # Performance Considerations
@@ -339,9 +339,7 @@ pub fn detect_and_parse(
         #[cfg(feature = "xml")]
         {
             let parser = EndNoteXmlParser::new();
-            let citations = parser
-                .parse(content)
-                .map_err(|parse_err| CitationError::Parse(parse_err))?;
+            let citations = parser.parse(content).map_err(CitationError::Parse)?;
             return Ok((citations, CitationFormat::EndNoteXml));
         }
         #[cfg(not(feature = "xml"))]
@@ -356,7 +354,7 @@ pub fn detect_and_parse(
             return parser
                 .parse(content)
                 .map(|citations| (citations, CitationFormat::Ris))
-                .map_err(|parse_err| CitationError::Parse(parse_err));
+                .map_err(CitationError::Parse);
         }
         #[cfg(not(feature = "ris"))]
         return Err(CitationError::UnknownFormat);
@@ -370,7 +368,7 @@ pub fn detect_and_parse(
             return parser
                 .parse(content)
                 .map(|citations| (citations, CitationFormat::PubMed))
-                .map_err(|parse_err| CitationError::Parse(parse_err));
+                .map_err(CitationError::Parse);
         }
         #[cfg(not(feature = "pubmed"))]
         return Err(CitationError::UnknownFormat);

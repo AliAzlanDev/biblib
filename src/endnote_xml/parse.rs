@@ -2,8 +2,8 @@
 //!
 //! This module provides the core parsing logic for EndNote XML format.
 
-use crate::{Author, Citation, CitationFormat};
 use crate::error::{ParseError, ValueError};
+use crate::{Author, Citation, CitationFormat};
 use quick_xml::Reader;
 use quick_xml::events::Event;
 use quick_xml::name::QName;
@@ -37,7 +37,7 @@ fn extract_text_with_position<B: BufRead>(
                     ParseError::at_line(
                         line_num,
                         CitationFormat::EndNoteXml,
-                        ValueError::Syntax(format!("Invalid XML text content: {}", e))
+                        ValueError::Syntax(format!("Invalid XML text content: {}", e)),
                     )
                 })?);
             }
@@ -50,7 +50,7 @@ fn extract_text_with_position<B: BufRead>(
                     ValueError::Syntax(format!(
                         "Unexpected EOF while looking for closing tag '{}'",
                         closing_tag_str
-                    ))
+                    )),
                 ));
             }
             Err(e) => {
@@ -58,7 +58,7 @@ fn extract_text_with_position<B: BufRead>(
                 return Err(ParseError::at_line(
                     line_num,
                     CitationFormat::EndNoteXml,
-                    ValueError::Syntax(format!("XML parsing error: {}", e))
+                    ValueError::Syntax(format!("XML parsing error: {}", e)),
                 ));
             }
             _ => continue,
@@ -126,7 +126,7 @@ fn extract_text<B: BufRead>(
                 text.push_str(&e.unescape().map_err(|e| {
                     ParseError::without_position(
                         CitationFormat::EndNoteXml,
-                        ValueError::Syntax(format!("Invalid XML text content: {}", e))
+                        ValueError::Syntax(format!("Invalid XML text content: {}", e)),
                     )
                 })?);
             }
@@ -137,7 +137,7 @@ fn extract_text<B: BufRead>(
                     ValueError::Syntax(format!(
                         "Unexpected EOF while looking for closing tag '{}'",
                         closing_tag_str
-                    ))
+                    )),
                 ));
             }
             Err(e) => return Err(ParseError::from(e)),
@@ -161,10 +161,12 @@ fn extract_date_from_year_element<B: BufRead>(
 
     // First, extract attributes if present
     for attr in e.attributes() {
-        let attr = attr.map_err(|e| ParseError::without_position(
-            CitationFormat::EndNoteXml,
-            ValueError::Syntax(format!("Invalid attribute: {}", e))
-        ))?;
+        let attr = attr.map_err(|e| {
+            ParseError::without_position(
+                CitationFormat::EndNoteXml,
+                ValueError::Syntax(format!("Invalid attribute: {}", e)),
+            )
+        })?;
         match attr.key.as_ref() {
             b"year" => {
                 if let Ok(year_str) = std::str::from_utf8(&attr.value) {
@@ -225,17 +227,24 @@ fn parse_record<B: BufRead>(
             Ok(Event::Start(ref e)) => match e.name().as_ref() {
                 b"ref-type" => {
                     for attr in e.attributes() {
-                        let attr = attr.map_err(|e| ParseError::without_position(
-                            CitationFormat::EndNoteXml,
-                            ValueError::Syntax(format!("Invalid attribute: {}", e))
-                        ))?;
+                        let attr = attr.map_err(|e| {
+                            ParseError::without_position(
+                                CitationFormat::EndNoteXml,
+                                ValueError::Syntax(format!("Invalid attribute: {}", e)),
+                            )
+                        })?;
                         if attr.key.as_ref() == b"name" {
                             citation.citation_type.push(
                                 attr.unescape_value()
-                                    .map_err(|e| ParseError::without_position(
-                                        CitationFormat::EndNoteXml,
-                                        ValueError::Syntax(format!("Invalid attribute value: {}", e))
-                                    ))?
+                                    .map_err(|e| {
+                                        ParseError::without_position(
+                                            CitationFormat::EndNoteXml,
+                                            ValueError::Syntax(format!(
+                                                "Invalid attribute value: {}",
+                                                e
+                                            )),
+                                        )
+                                    })?
                                     .into_owned(),
                             );
                         }
@@ -375,7 +384,7 @@ fn parse_record<B: BufRead>(
             ValueError::MissingValue {
                 field: "title or author",
                 key: "title/author",
-            }
+            },
         ));
     }
 

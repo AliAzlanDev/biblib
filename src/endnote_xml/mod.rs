@@ -48,8 +48,8 @@
 
 mod parse;
 
-use crate::{Citation, CitationParser};
 use crate::error::ParseError;
+use crate::{Citation, CitationParser};
 use parse::parse_endnote_xml;
 
 /// Parser for EndNote XML format citations.
@@ -403,8 +403,11 @@ mod integration_tests {
             );
             // Check that the error message mentions missing title/author
             let error_msg = format!("{}", parse_error.error);
-            assert!(error_msg.contains("title") || error_msg.contains("author"),
-                "Error should mention missing title or author, got: {}", error_msg);
+            assert!(
+                error_msg.contains("title") || error_msg.contains("author"),
+                "Error should mention missing title or author, got: {}",
+                error_msg
+            );
         } else {
             panic!("Expected ParseError");
         }
@@ -456,8 +459,11 @@ mod integration_tests {
                 line
             );
             let error_msg = format!("{}", parse_error.error);
-            assert!(error_msg.contains("title") || error_msg.contains("author"),
-                "Error should mention missing title or author, got: {}", error_msg);
+            assert!(
+                error_msg.contains("title") || error_msg.contains("author"),
+                "Error should mention missing title or author, got: {}",
+                error_msg
+            );
         } else {
             panic!("Expected ParseError");
         }
