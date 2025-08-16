@@ -67,7 +67,7 @@ fn join_lines(v: Vec<&str>) -> String {
         } else {
             acc.add(" ")
         }
-            .add(e)
+        .add(e)
     })
 }
 
@@ -81,9 +81,9 @@ impl<'a, I: Iterator<Item = &'a str>> Iterator for WholeLinesIter<'a, I> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use itertools::Itertools;
     use rstest::*;
-    use super::*;
 
     #[rstest]
     #[case("", &[""])]
@@ -111,9 +111,6 @@ LAST- line
 &["PMID- 123456", "FOO - bar", "LONG- I am a very long line containing so much text that there is a line break", "LAST- line", ""])]
     fn test_continued_lines_iterator(#[case] text: &str, #[case] expected: &[&str]) {
         let actual: Vec<_> = WholeLinesIter::new(text.split('\n')).collect();
-        assert_eq!(
-            &actual.iter().map(|s| s.as_str()).collect_vec(),
-            expected
-        )
+        assert_eq!(&actual.iter().map(|s| s.as_str()).collect_vec(), expected)
     }
 }

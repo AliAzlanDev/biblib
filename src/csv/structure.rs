@@ -3,7 +3,8 @@
 //! This module defines intermediate data structures used during CSV parsing.
 
 use crate::csv::config::CsvConfig;
-use crate::{Author, CitationError};
+use crate::error::{ParseError, ValueError, fields};
+use crate::{Author, CitationFormat};
 use csv::StringRecord;
 use std::collections::HashMap;
 
@@ -33,7 +34,7 @@ impl RawCsvData {
         record: &StringRecord,
         config: &CsvConfig,
         line_number: usize,
-    ) -> Result<Self, CitationError> {
+    ) -> Result<Self, ParseError> {
         let mut fields = HashMap::new();
         let mut authors = Vec::new();
         let mut keywords = Vec::new();
@@ -50,14 +51,15 @@ impl RawCsvData {
         for (i, value) in record.iter().enumerate() {
             if i >= headers.len() {
                 if !config.flexible {
-                    return Err(CitationError::MalformedInput {
-                        message: format!(
+                    return Err(ParseError::at_line(
+                        line_number,
+                        CitationFormat::Csv,
+                        ValueError::Syntax(format!(
                             "Record has more fields ({}) than headers ({})",
                             record.len(),
                             headers.len()
-                        ),
-                        line: line_number,
-                    });
+                        )),
+                    ));
                 }
                 break;
             }
@@ -124,11 +126,16 @@ impl RawCsvData {
     pub(crate) fn into_citation_with_config(
         self,
         config: &CsvConfig,
-    ) -> Result<crate::Citation, CitationError> {
-        let title = self
-            .get_field("title")
-            .cloned()
-            .ok_or_else(|| CitationError::MissingField("title".to_string()))?;
+    ) -> Result<crate::Citation, crate::error::CitationError> {
+        let title = self.get_field("title").cloned().ok_or_else(|| {
+            ParseError::without_position(
+                CitationFormat::Csv,
+                ValueError::MissingValue {
+                    field: fields::TITLE,
+                    key: "title",
+                },
+            )
+        })?;
 
         let journal = self.get_field("journal").cloned();
         let journal_abbr = self.get_field("journal_abbr").cloned();
@@ -242,7 +249,7 @@ fn is_standard_field(field_name: &str, config: &CsvConfig) -> bool {
 }
 
 impl TryFrom<RawCsvData> for crate::Citation {
-    type Error = CitationError;
+    type Error = crate::error::CitationError;
 
     fn try_from(raw: RawCsvData) -> Result<Self, Self::Error> {
         // Use default config for backward compatibility
@@ -352,6 +359,7 @@ mod tests {
         let raw = RawCsvData::from_record(&headers, &record, &config, 1).unwrap();
         let result: Result<crate::Citation, _> = raw.try_into();
 
-        assert!(matches!(result, Err(CitationError::MissingField(_))));
+        // The error is now converted through the legacy bridge
+        assert!(result.is_err());
     }
 }

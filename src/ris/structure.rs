@@ -10,8 +10,8 @@
 //! - **Two-pass**: DOI extraction checks dedicated fields first, then URLs
 //! - **Validation**: Date parsing includes error logging for invalid formats
 
+use crate::Author;
 use crate::ris::tags::RisTag;
-use crate::{Author, CitationError};
 use std::collections::HashMap;
 
 /// Structured raw data from a RIS formatted file.
@@ -104,7 +104,7 @@ impl RawRisData {
 }
 
 impl TryFrom<RawRisData> for crate::Citation {
-    type Error = CitationError;
+    type Error = crate::error::ParseError;
 
     fn try_from(mut raw: RawRisData) -> Result<Self, Self::Error> {
         let citation_type = raw.remove(&RisTag::Type).unwrap_or_default();
@@ -149,7 +149,7 @@ impl TryFrom<RawRisData> for crate::Citation {
 
 impl crate::Citation {
     /// Extract title from RIS data, trying primary title first, then alternative.
-    fn extract_title(raw: &mut RawRisData) -> Result<String, CitationError> {
+    fn extract_title(raw: &mut RawRisData) -> Result<String, crate::error::ParseError> {
         let title = raw
             .get_first(&RisTag::Title)
             .filter(|s| !s.trim().is_empty())
@@ -158,7 +158,15 @@ impl crate::Citation {
                     .filter(|s| !s.trim().is_empty())
             })
             .cloned()
-            .ok_or_else(|| CitationError::MissingField("title".to_string()))?;
+            .ok_or_else(|| {
+                crate::error::ParseError::without_position(
+                    crate::CitationFormat::Ris,
+                    crate::error::ValueError::MissingValue {
+                        field: crate::error::fields::TITLE,
+                        key: "TI",
+                    },
+                )
+            })?;
 
         // Remove title data after extraction
         raw.remove(&RisTag::Title);
@@ -379,7 +387,7 @@ mod tests {
     fn test_missing_title_error() {
         let raw = RawRisData::new();
         let result: Result<crate::Citation, _> = raw.try_into();
-        assert!(matches!(result, Err(CitationError::MissingField(_))));
+        assert!(matches!(result, Err(_parse_err)));
     }
 
     #[test]

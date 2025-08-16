@@ -48,7 +48,8 @@
 
 mod parse;
 
-use crate::{Citation, CitationParser, Result};
+use crate::error::ParseError;
+use crate::{Citation, CitationParser};
 use parse::parse_endnote_xml;
 
 /// Parser for EndNote XML format citations.
@@ -98,7 +99,12 @@ impl CitationParser for EndNoteXmlParser {
     /// let citations = parser.parse(xml).unwrap();
     /// assert_eq!(citations[0].title, "Test Title");
     /// ```
-    fn parse(&self, input: &str) -> Result<Vec<Citation>> {
+    fn parse(&self, input: &str) -> Result<Vec<Citation>, ParseError> {
+        // Handle empty input by returning empty vector
+        if input.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+
         parse_endnote_xml(input)
     }
 }
@@ -384,14 +390,26 @@ mod integration_tests {
 
         let result = parse_endnote_xml(xml_with_empty_record);
         assert!(result.is_err());
-        
-        if let Err(crate::CitationError::MalformedInput { line, message }) = result {
-            // The line number should be around line 4-5 where the record starts
+
+        if let Err(parse_error) = result {
+            // Check that it's a ParseError with line tracking
+            assert!(parse_error.line.is_some(), "Line number should be tracked");
+            let line = parse_error.line.unwrap();
             assert!(line > 0, "Line number should be tracked and greater than 0");
-            assert!(line <= 6, "Line number should be reasonable for this small XML");
-            assert!(message.contains("Citation must have at least a title or author"));
+            assert!(
+                line <= 6,
+                "Line number should be reasonable for this small XML, got line {}",
+                line
+            );
+            // Check that the error message mentions missing title/author
+            let error_msg = format!("{}", parse_error.error);
+            assert!(
+                error_msg.contains("title") || error_msg.contains("author"),
+                "Error should mention missing title or author, got: {}",
+                error_msg
+            );
         } else {
-            panic!("Expected MalformedInput error with line number");
+            panic!("Expected ParseError");
         }
 
         // Test line number tracking with malformed XML text
@@ -430,14 +448,51 @@ mod integration_tests {
 
         let result = parse_endnote_xml(xml);
         assert!(result.is_err());
-        
-        if let Err(crate::CitationError::MalformedInput { line, message }) = result {
-            println!("Error at line {}: {}", line, message);
+
+        if let Err(parse_error) = result {
+            let line = parse_error.line.unwrap_or(0);
+            println!("Error at line {}: {}", line, parse_error.error);
             // The empty record starts around line 4, buffer position captured earlier
-            assert!(line >= 3 && line <= 7, "Line number should be around line 3-7, got {}", line);
-            assert!(message.contains("Citation must have at least a title or author"));
+            assert!(
+                line >= 3 && line <= 7,
+                "Line number should be around line 3-7, got {}",
+                line
+            );
+            let error_msg = format!("{}", parse_error.error);
+            assert!(
+                error_msg.contains("title") || error_msg.contains("author"),
+                "Error should mention missing title or author, got: {}",
+                error_msg
+            );
         } else {
-            panic!("Expected MalformedInput error with line number");
+            panic!("Expected ParseError");
         }
+    }
+
+    #[test]
+    fn test_empty_input() {
+        let parser = EndNoteXmlParser::new();
+        let result = parser.parse("").unwrap();
+        assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    fn test_whitespace_only_input() {
+        let parser = EndNoteXmlParser::new();
+        let result = parser.parse("   \n  \t  ").unwrap();
+        assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    fn test_no_citations_found() {
+        let parser = EndNoteXmlParser::new();
+        let xml = r#"
+        <xml>
+          <records>
+          </records>
+        </xml>
+        "#;
+        let result = parser.parse(xml).unwrap();
+        assert_eq!(result.len(), 0);
     }
 }

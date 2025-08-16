@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Error handling system**: Complete restructure of error types for better debugging and programmatic error handling
+  - `CitationParser::parse` now returns `Result<Vec<Citation>, ParseError>` instead of `Result<Vec<Citation>, CitationError>`
+  - `CitationError` restructured with `UnknownFormat` and `Parse(ParseError)` variants
+  - Enhanced error reporting with line/column tracking and semantic error types (`Syntax`, `MissingValue`, `BadValue`, `MultipleValues`)
+  - Empty input now returns `Ok(Vec::new())` instead of errors across all parsers
 - **`detect_and_parse()` function signature**: Now takes only one parameter (`content`) instead of two (`content`, `source`)
 
 ### Fixed
@@ -70,7 +75,61 @@ let citations = parser.parse(input).unwrap();
 let source = "PubMed"; // manage this in your app
 ```
 
-#### 3. Format Detection API
+#### 3. Error Handling
+
+The error system has been completely restructured for better debugging and programmatic error handling:
+
+**Before (v0.2.x):**
+
+```rust
+use biblib::CitationError;
+
+match parser.parse(input) {
+    Ok(citations) => println!("Parsed {} citations", citations.len()),
+    Err(CitationError::ParseError(msg)) => eprintln!("Parse error: {}", msg),
+    Err(CitationError::IoError(e)) => eprintln!("IO error: {}", e),
+}
+```
+
+**After (v0.3.x):**
+
+```rust
+use biblib::{CitationError, ParseError, ValueError};
+
+match parser.parse(input) {
+    Ok(citations) => println!("Parsed {} citations", citations.len()),
+    Err(parse_err) => {
+        // Much more detailed error information
+        eprintln!("Parse error at line {}: {}",
+            parse_err.line.unwrap_or(0), parse_err);
+
+        // Handle specific error types
+        match &parse_err.error {
+            ValueError::Syntax(msg) => eprintln!("Syntax error: {}", msg),
+            ValueError::MissingValue { field, key } => {
+                eprintln!("Missing required field {}: {}", field, key)
+            },
+            ValueError::BadValue { field, key, value, reason } => {
+                eprintln!("Invalid value in field {} ({}): {} ({})", field, key, value, reason)
+            },
+            ValueError::MultipleValues { field, key, .. } => {
+                eprintln!("Multiple values for field {} ({})", field, key)
+            },
+        }
+    }
+}
+
+// For top-level API (detect_and_parse), handle CitationError:
+match detect_and_parse(content) {
+    Ok((citations, format)) => println!("Detected {} format, parsed {} citations", format, citations.len()),
+    Err(CitationError::UnknownFormat) => eprintln!("Could not detect citation format"),
+    Err(CitationError::Parse(parse_err)) => eprintln!("Parse error: {}", parse_err),
+}
+```
+
+Note: Empty input now returns `Ok(Vec::new())` instead of an error, improving API usability.
+
+#### 4. Format Detection API
 
 The `detect_and_parse()` function no longer accepts a source parameter:
 
@@ -87,7 +146,7 @@ let (citations, format) = detect_and_parse(content).unwrap();
 // Track source separately in your application
 ```
 
-#### 4. Enhanced CSV Parser API
+#### 5. Enhanced CSV Parser API
 
 The CSV parser has been significantly enhanced. Existing code will continue to work, but new features are available:
 
@@ -104,7 +163,7 @@ config.set_quote(b'\'').set_flexible(true).add_header_aliases("title", vec!["pap
 let parser = CsvParser::with_config(config);
 ```
 
-#### 5. Deduplication with Sources
+#### 6. Deduplication with Sources
 
 Use the new `find_duplicates_with_sources()` method when you need source-aware deduplication:
 

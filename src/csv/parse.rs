@@ -2,22 +2,29 @@
 //!
 //! This module handles the low-level parsing of CSV formatted text.
 
+use crate::CitationFormat;
 use crate::csv::config::CsvConfig;
 use crate::csv::structure::RawCsvData;
-use crate::{CitationError, Result};
+use crate::error::{ParseError, ValueError};
 use csv::ReaderBuilder;
 
 /// Parse the content of a CSV formatted file, returning structured data.
-pub fn csv_parse<S: AsRef<str>>(csv_text: S, config: &CsvConfig) -> Result<Vec<RawCsvData>> {
+pub fn csv_parse<S: AsRef<str>>(
+    csv_text: S,
+    config: &CsvConfig,
+) -> Result<Vec<RawCsvData>, ParseError> {
     let text = csv_text.as_ref();
 
     if text.trim().is_empty() {
-        return Err(CitationError::InvalidFormat("Empty input".into()));
+        return Ok(Vec::new());
     }
 
     // Validate configuration
     config.validate().map_err(|msg| {
-        CitationError::InvalidFormat(format!("Invalid CSV configuration: {}", msg))
+        ParseError::without_position(
+            CitationFormat::Csv,
+            ValueError::Syntax(format!("Invalid CSV configuration: {}", msg)),
+        )
     })?;
 
     let mut reader = ReaderBuilder::new()
@@ -35,14 +42,22 @@ pub fn csv_parse<S: AsRef<str>>(csv_text: S, config: &CsvConfig) -> Result<Vec<R
     let headers: Vec<String> = if config.has_header {
         reader
             .headers()
-            .map_err(|e| CitationError::InvalidFormat(format!("Header parsing error: {}", e)))?
+            .map_err(|e| {
+                ParseError::without_position(
+                    CitationFormat::Csv,
+                    ValueError::Syntax(format!("Header parsing error: {}", e)),
+                )
+            })?
             .iter()
             .map(String::from)
             .collect()
     } else {
         // Use column numbers as headers if no headers present
         let first_record = reader.headers().map_err(|e| {
-            CitationError::InvalidFormat(format!("Failed to read first record: {}", e))
+            ParseError::without_position(
+                CitationFormat::Csv,
+                ValueError::Syntax(format!("Failed to read first record: {}", e)),
+            )
         })?;
         (0..first_record.len())
             .map(|i| format!("Column{}", i + 1))
@@ -50,8 +65,9 @@ pub fn csv_parse<S: AsRef<str>>(csv_text: S, config: &CsvConfig) -> Result<Vec<R
     };
 
     if headers.is_empty() {
-        return Err(CitationError::InvalidFormat(
-            "No headers found in CSV".into(),
+        return Err(ParseError::without_position(
+            CitationFormat::Csv,
+            ValueError::Syntax("No headers found in CSV".to_string()),
         ));
     }
 
@@ -59,9 +75,21 @@ pub fn csv_parse<S: AsRef<str>>(csv_text: S, config: &CsvConfig) -> Result<Vec<R
     let mut line_number = if config.has_header { 2 } else { 1 }; // Start counting from data lines
 
     for result in reader.records() {
-        let record = result.map_err(|e| CitationError::MalformedInput {
-            message: format!("CSV parsing error: {}", e),
-            line: line_number,
+        let record = result.map_err(|e| {
+            // Extract position information from csv::Error if available
+            if let Some(position) = e.position() {
+                ParseError::at_line(
+                    position.line() as usize,
+                    CitationFormat::Csv,
+                    ValueError::Syntax(format!("CSV parsing error: {}", e)),
+                )
+            } else {
+                ParseError::at_line(
+                    line_number,
+                    CitationFormat::Csv,
+                    ValueError::Syntax(format!("CSV parsing error: {}", e)),
+                )
+            }
         })?;
 
         if record.is_empty() {
@@ -74,19 +102,18 @@ pub fn csv_parse<S: AsRef<str>>(csv_text: S, config: &CsvConfig) -> Result<Vec<R
         if raw_citation.has_content() {
             raw_citations.push(raw_citation);
         } else if !config.flexible {
-            return Err(CitationError::MalformedInput {
-                message: "Record contains no meaningful content".to_string(),
-                line: line_number,
-            });
+            return Err(ParseError::at_line(
+                line_number,
+                CitationFormat::Csv,
+                ValueError::Syntax("Record contains no meaningful content".to_string()),
+            ));
         }
 
         line_number += 1;
     }
 
     if raw_citations.is_empty() {
-        return Err(CitationError::InvalidFormat(
-            "No valid citations found in CSV".into(),
-        ));
+        return Ok(Vec::new());
     }
 
     Ok(raw_citations)
@@ -232,7 +259,7 @@ mod tests {
     fn test_csv_parse_empty_input() {
         let config = CsvConfig::new();
         let result = csv_parse("", &config);
-        assert!(result.is_err());
+        assert!(result.unwrap().is_empty());
     }
 
     #[test]
@@ -305,10 +332,11 @@ mod tests {
         let config = CsvConfig::new();
 
         match csv_parse(input, &config) {
-            Err(CitationError::MalformedInput { line, .. }) => {
-                assert_eq!(line, 2); // Second line (first data line)
+            Err(parse_err) if parse_err.line.is_some() => {
+                assert_eq!(parse_err.line.unwrap(), 2); // Second line (first data line)
+                assert_eq!(parse_err.format, CitationFormat::Csv);
             }
-            _ => panic!("Expected MalformedInput error with line number"),
+            _ => panic!("Expected ParseError with line number"),
         }
     }
 }
