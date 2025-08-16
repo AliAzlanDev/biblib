@@ -122,7 +122,6 @@
 //!     Err(e) => eprintln!("Parse error: {}", e),
 //! }
 //! ```
-//! ```
 //!
 //! # Performance Considerations
 //!
@@ -137,7 +136,6 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use thiserror::Error;
 
 #[cfg(feature = "csv")]
 extern crate csv as csv_crate;
@@ -169,17 +167,12 @@ mod regex;
 mod utils;
 
 /// Citation format types supported by the library.
-#[derive(Error, Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CitationFormat {
-    #[error("RIS")]
     Ris,
-    #[error("PubMed")]
     PubMed,
-    #[error("EndNote XML")]
     EndNoteXml,
-    #[error("CSV")]
     Csv,
-    #[error("Unknown")]
     Unknown,
 }
 
@@ -193,6 +186,12 @@ impl CitationFormat {
             CitationFormat::Csv => "CSV",
             CitationFormat::Unknown => "Unknown",
         }
+    }
+}
+
+impl std::fmt::Display for CitationFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
