@@ -105,7 +105,7 @@ ER  -
         assert_eq!(citation.citation_type[0], "JOUR");
         assert_eq!(citation.title, "Test Article Title");
         assert_eq!(citation.authors.len(), 1);
-        assert_eq!(citation.authors[0].family_name, "Smith");
+    assert_eq!(citation.authors[0].name, "Smith");
         let date = citation.date.as_ref().unwrap();
         assert_eq!(date.year, 2023);
         assert_eq!(date.month, Some(12));

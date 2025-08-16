@@ -323,7 +323,7 @@ mod tests {
             result[0].get_field("title"),
             Some(&"Test Article with, comma".to_string())
         );
-        assert_eq!(result[0].authors[0].family_name, "Smith");
+    assert_eq!(result[0].authors[0].name, "Smith");
     }
 
     #[test]

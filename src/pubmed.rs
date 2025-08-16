@@ -108,7 +108,7 @@ MH- Keyword2
         assert_eq!(citation.pmid.as_deref(), Some("12345678"));
         assert_eq!(citation.title, "Test Article Title");
         assert_eq!(citation.authors.len(), 1);
-        assert_eq!(citation.authors[0].family_name, "Smith");
+    assert_eq!(citation.authors[0].name, "Smith");
         let date = citation.date.as_ref().unwrap();
         assert_eq!(date.year, 2023);
         assert_eq!(date.month, Some(1));
@@ -146,10 +146,9 @@ JT  - Test Journal
 "#;
         let parser = PubMedParser::new();
         let result = parser.parse(input).unwrap();
-        assert_eq!(
-            result[0].authors[0].affiliation.as_deref(),
-            Some("Department of Science, Test University New York, NY 10021, USA")
-        );
+        assert!(result[0].authors[0]
+            .affiliations
+            .contains(&"Department of Science, Test University New York, NY 10021, USA".to_string()));
     }
 
     #[test]
@@ -205,10 +204,10 @@ AU  - Jones B
         let parser = PubMedParser::new();
         let result = parser.parse(input).unwrap();
         assert_eq!(result[0].authors.len(), 2);
-        assert_eq!(result[0].authors[0].family_name, "Smith");
-        assert_eq!(result[0].authors[0].given_name, "J");
-        assert_eq!(result[0].authors[1].family_name, "Jones");
-        assert_eq!(result[0].authors[1].given_name, "B");
+    assert_eq!(result[0].authors[0].name, "Smith");
+    assert_eq!(result[0].authors[0].given_name.as_deref(), Some("J"));
+    assert_eq!(result[0].authors[1].name, "Jones");
+    assert_eq!(result[0].authors[1].given_name.as_deref(), Some("B"));
     }
 
     #[test]
@@ -224,10 +223,10 @@ AU  - Zhang H
         let parser = PubMedParser::new();
         let result = parser.parse(input).unwrap();
         assert_eq!(result[0].authors.len(), 2);
-        assert_eq!(result[0].authors[0].family_name, "Li");
-        assert_eq!(result[0].authors[0].given_name, "Yun");
-        assert_eq!(result[0].authors[1].family_name, "Zhang");
-        assert_eq!(result[0].authors[1].given_name, "Huajun");
+    assert_eq!(result[0].authors[0].name, "Li");
+    assert_eq!(result[0].authors[0].given_name.as_deref(), Some("Yun"));
+    assert_eq!(result[0].authors[1].name, "Zhang");
+    assert_eq!(result[0].authors[1].given_name.as_deref(), Some("Huajun"));
     }
 
     #[test]
@@ -237,10 +236,10 @@ AU  - Zhang H
         let result = parser.parse(input).unwrap();
         assert_eq!(result[0].pmid.as_deref(), Some("123"));
         assert_eq!(result[0].title, "Windows");
-        assert_eq!(result[0].authors[0].given_name, "Bill");
-        assert_eq!(result[0].authors[0].family_name, "Gates");
-        assert_eq!(result[0].authors[1].given_name, "Dave");
-        assert_eq!(result[0].authors[1].family_name, "Cutler");
+    assert_eq!(result[0].authors[0].given_name.as_deref(), Some("Bill"));
+    assert_eq!(result[0].authors[0].name, "Gates");
+    assert_eq!(result[0].authors[1].given_name.as_deref(), Some("Dave"));
+    assert_eq!(result[0].authors[1].name, "Cutler");
     }
 
     #[test]

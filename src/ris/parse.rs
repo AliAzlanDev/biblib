@@ -159,11 +159,12 @@ fn extract_ris_content(line: &str, line_number: usize) -> Result<String, ParseEr
 /// Parse an author string into an Author struct.
 fn parse_author(author_str: &str) -> Author {
     let (family, given) = parse_author_name(author_str);
-    Author {
-        family_name: family,
-        given_name: given,
-        affiliation: None,
-    }
+    let (given_opt, middle_opt) = if given.is_empty() {
+        (None, None)
+    } else {
+        crate::utils::split_given_and_middle(&given)
+    };
+    Author { name: family, given_name: given_opt, middle_name: middle_opt, affiliations: Vec::new() }
 }
 
 /// Check if a line is RIS metadata that should be ignored.
@@ -235,7 +236,7 @@ ER  -"#;
             Some(&"Test Article".to_string())
         );
         assert_eq!(raw.authors.len(), 1);
-        assert_eq!(raw.authors[0].family_name, "Smith");
+    assert_eq!(raw.authors[0].name, "Smith");
     }
 
     #[test]
@@ -314,8 +315,8 @@ ER  -"#;
     #[test]
     fn test_parse_author() {
         let author = parse_author("Smith, John");
-        assert_eq!(author.family_name, "Smith");
-        assert_eq!(author.given_name, "John");
-        assert_eq!(author.affiliation, None);
+    assert_eq!(author.name, "Smith");
+    assert_eq!(author.given_name.as_deref(), Some("John"));
+    assert!(author.affiliations.is_empty());
     }
 }
