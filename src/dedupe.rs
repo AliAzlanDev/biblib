@@ -28,9 +28,10 @@
 //!         title: "Machine Learning Basics".to_string(),
 //!         authors: vec![
 //!             Author {
-//!                 family_name: "Smith".to_string(),
-//!                 given_name: "John".to_string(),
-//!                 affiliation: None,
+//!                 name: "Smith".to_string(),
+//!                 given_name: Some("John".to_string()),
+//!                 middle_name: None,
+//!                 affiliations: vec![],
 //!             }
 //!         ],
 //!         doi: Some("10.1234/ml.2023.001".to_string()),
@@ -42,9 +43,10 @@
 //!         title: "Machine Learning Basics.".to_string(), // Notice the period
 //!         authors: vec![
 //!             Author {
-//!                 family_name: "Smith".to_string(),
-//!                 given_name: "John".to_string(),
-//!                 affiliation: None,
+//!                 name: "Smith".to_string(),
+//!                 given_name: Some("John".to_string()),
+//!                 middle_name: None,
+//!                 affiliations: vec![],
 //!             }
 //!         ],
 //!         doi: Some("10.1234/ml.2023.001".to_string()),
@@ -497,8 +499,7 @@ impl Deduplicator {
         }
     }
 
-    /// Get the year from a citation, providing backward compatibility.
-    /// Prefers the new `date.year` field, falls back to deprecated `year` field.
+    /// Get the year from a citation.
     fn get_citation_year(citation: &Citation) -> Option<i32> {
         Self::get_citation_year_static(citation)
     }
@@ -704,8 +705,7 @@ impl Deduplicator {
     }
     /// Static version of get_citation_year for use in static contexts
     fn get_citation_year_static(citation: &Citation) -> Option<i32> {
-        #[allow(deprecated)]
-        citation.date.as_ref().map(|d| d.year).or(citation.year)
+        citation.date.as_ref().map(|d| d.year)
     }
 
     fn convert_unicode_string(input: &str) -> String {

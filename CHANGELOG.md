@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0 - Unreleased]
+## [0.3.0] - 2025-08-17
 
 ### Added
 
@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enhanced error reporting with line/column tracking and semantic error types (`Syntax`, `MissingValue`, `BadValue`, `MultipleValues`)
   - Empty input now returns `Ok(Vec::new())` instead of errors across all parsers
 - **`detect_and_parse()` function signature**: Now takes only one parameter (`content`) instead of two (`content`, `source`)
+- **Author struct (BREAKING)**: The `Author` schema has changed to support richer name handling and multiple affiliations
+  - Before: `Author { family_name: String, given_name: String, affiliation: Option<String> }`
+  - After: `Author { name: String, given_name: Option<String>, middle_name: Option<String>, affiliations: Vec<String> }`
+  - Name parsing is standardized via a shared utility; mononyms and middle names are handled consistently across all parsers
 
 ### Fixed
 
@@ -30,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Citation ID field**: The `id` field has been completely removed from the `Citation` struct as it is not part of the actual bibliographic data parsed from citation formats
 - **Source tracking in Citation struct**: The `source` field has been completely removed from the `Citation` struct and all parser implementations
 - **Parser `with_source()` methods**: All parsers no longer have the `with_source()` method for setting citation source
+- **Citation year field (BREAKING)**: The deprecated `year: Option<i32>` field has been removed from `Citation`; use `date.year` instead
 
 ### Migration Guide
 
@@ -183,6 +188,58 @@ let sources = vec!["PubMed", "CrossRef"]; // source for each citation
 let deduplicator = Deduplicator::new().with_config(config);
 let groups = deduplicator.find_duplicates_with_sources(&citations, &sources).unwrap();
 ```
+
+#### 7. Author Struct Changes (BREAKING)
+
+The `Author` struct now supports richer name handling and multiple affiliations. Update your code as follows:
+
+**Before (v0.2.x):**
+
+```rust
+let a = biblib::Author {
+    family_name: "Smith".into(),
+    given_name: "John".into(),
+    affiliation: Some("University of Nowhere".into()),
+};
+```
+
+**After (v0.3.x):**
+
+```rust
+let a = biblib::Author {
+    name: "Smith".into(),
+    given_name: Some("John".into()),
+    middle_name: None,
+    affiliations: vec!["University of Nowhere".into()],
+};
+```
+
+Notes:
+
+- `name` contains the full name; `given_name`/`middle_name` are optional.
+- Multiple affiliations are stored in the `affiliations` vector.
+- Parsers now handle name splitting consistently.
+
+#### 8. Citation Year Field Removed (BREAKING)
+
+The `Citation.year` field has been removed. Use `date.year` instead:
+
+**Before (v0.2.x):**
+
+```rust
+let year = citation.year;
+```
+
+**After (v0.3.x):**
+
+```rust
+let year = citation.date.as_ref().map(|d| d.year);
+```
+
+Notes:
+
+- Parsers now populate `citation.date` only.
+- CSV mappings for a `year` header still populate `citation.date`.
 
 ## [0.2.4] - 2025-06-11
 

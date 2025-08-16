@@ -256,10 +256,16 @@ fn parse_record<B: BufRead>(
                 b"author" => {
                     let author_str = extract_text(reader, buf, b"author")?;
                     let (family, given) = crate::utils::parse_author_name(&author_str);
+                    let (given_opt, middle_opt) = if given.is_empty() {
+                        (None, None)
+                    } else {
+                        crate::utils::split_given_and_middle(&given)
+                    };
                     citation.authors.push(Author {
-                        family_name: family,
-                        given_name: given,
-                        affiliation: None,
+                        name: family,
+                        given_name: given_opt,
+                        middle_name: middle_opt,
+                        affiliations: Vec::new(),
                     });
                 }
                 b"secondary-title" => {
@@ -314,11 +320,6 @@ fn parse_record<B: BufRead>(
                     let (year_val, month_val, day_val) =
                         extract_date_from_year_element(reader, e, content)?;
                     citation.date = crate::utils::parse_endnote_date(year_val, month_val, day_val);
-                    // For backward compatibility, also set the deprecated year field
-                    #[allow(deprecated)]
-                    {
-                        citation.year = citation.date.as_ref().map(|d| d.year);
-                    }
                 }
                 b"dates" => {
                     // Handle the dates element - we'll look for year sub-element
@@ -331,11 +332,6 @@ fn parse_record<B: BufRead>(
                                     extract_date_from_year_element(reader, inner_e, content)?;
                                 citation.date =
                                     crate::utils::parse_endnote_date(year_val, month_val, day_val);
-                                // For backward compatibility, also set the deprecated year field
-                                #[allow(deprecated)]
-                                {
-                                    citation.year = citation.date.as_ref().map(|d| d.year);
-                                }
                             }
                             Ok(Event::End(ref inner_e)) if inner_e.name() == QName(b"dates") => {
                                 break;

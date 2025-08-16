@@ -59,8 +59,6 @@ impl TryFrom<RawPubmedData> for crate::Citation {
             journal_abbr: data
                 .remove(&PubmedTag::JournalTitleAbbreviation)
                 .and_then(join_if_some),
-            #[allow(deprecated)]
-            year: date.as_ref().map(|d| d.year),
             date,
             volume: data.remove(&PubmedTag::Volume).and_then(join_if_some),
             issue: data.remove(&PubmedTag::Issue).and_then(join_if_some),
@@ -124,14 +122,15 @@ fn parse_doi_from_lid(s: String) -> Option<String> {
 
 impl From<PubmedAuthor> for crate::Author {
     fn from(PubmedAuthor { name, affiliations }: PubmedAuthor) -> Self {
+        let (given_name_opt, middle_name_opt) = name
+            .given_name()
+            .map(|g| crate::utils::split_given_and_middle(g))
+            .unwrap_or((None, None));
         Self {
-            family_name: name.last_name().to_string(),
-            given_name: name.given_name().unwrap_or("").to_string(),
-            affiliation: if affiliations.is_empty() {
-                None
-            } else {
-                Some(affiliations.join(" and "))
-            },
+            name: name.last_name().to_string(),
+            given_name: given_name_opt,
+            middle_name: middle_name_opt,
+            affiliations,
         }
     }
 }

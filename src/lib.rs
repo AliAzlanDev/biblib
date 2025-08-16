@@ -17,7 +17,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! biblib = { version = "0.2.0", default-features = false, features = ["csv", "ris"] }
+//! biblib = { version = "0.3.0", default-features = false, features = ["csv", "ris"] }
 //! ```
 //!
 //! # Key Characteristics
@@ -209,12 +209,17 @@ pub struct Date {
 /// Represents an author of a citation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Author {
-    /// The author's family name (surname)
-    pub family_name: String,
-    /// The author's given name (first name)
-    pub given_name: String,
-    /// Optional affiliation
-    pub affiliation: Option<String>,
+    /// The primary name of the person. This can be the family name or full name for mononyms.
+    pub name: String,
+
+    /// Optional given name (first name).
+    pub given_name: Option<String>,
+
+    /// Optional middle name(s), when available.
+    pub middle_name: Option<String>,
+
+    /// List of affiliation strings associated with the author.
+    pub affiliations: Vec<String>,
 }
 
 /// Represents a single citation with its metadata.
@@ -232,9 +237,6 @@ pub struct Citation {
     pub journal_abbr: Option<String>,
     /// Publication date with year, month, and day
     pub date: Option<Date>,
-    /// Publication year
-    #[deprecated(since = "0.3.0", note = "Use `date.year` instead")]
-    pub year: Option<i32>,
     /// Volume number
     pub volume: Option<String>,
     /// Issue number
@@ -382,14 +384,16 @@ mod tests {
     #[test]
     fn test_author_equality() {
         let author1 = Author {
-            family_name: "Smith".to_string(),
-            given_name: "John".to_string(),
-            affiliation: None,
+            name: "Smith".to_string(),
+            given_name: Some("John".to_string()),
+            middle_name: None,
+            affiliations: Vec::new(),
         };
         let author2 = Author {
-            family_name: "Smith".to_string(),
-            given_name: "John".to_string(),
-            affiliation: None,
+            name: "Smith".to_string(),
+            given_name: Some("John".to_string()),
+            middle_name: None,
+            affiliations: Vec::new(),
         };
         assert_eq!(author1, author2);
     }

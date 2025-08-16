@@ -78,10 +78,16 @@ impl RawCsvData {
                             let author_str = author_str.trim();
                             if !author_str.is_empty() {
                                 let (family, given) = crate::utils::parse_author_name(author_str);
+                                let (given_opt, middle_opt) = if given.is_empty() {
+                                    (None, None)
+                                } else {
+                                    crate::utils::split_given_and_middle(&given)
+                                };
                                 authors.push(crate::Author {
-                                    family_name: family,
-                                    given_name: given,
-                                    affiliation: None,
+                                    name: family,
+                                    given_name: given_opt,
+                                    middle_name: middle_opt,
+                                    affiliations: Vec::new(),
                                 });
                             }
                         }
@@ -176,8 +182,6 @@ impl RawCsvData {
             journal,
             journal_abbr,
             date: date.clone(),
-            #[allow(deprecated)]
-            year: date.as_ref().map(|d| d.year),
             volume,
             issue,
             pages,
@@ -282,7 +286,7 @@ mod tests {
 
         assert_eq!(raw.get_field("title"), Some(&"Test Article".to_string()));
         assert_eq!(raw.authors.len(), 1);
-        assert_eq!(raw.authors[0].family_name, "Smith");
+    assert_eq!(raw.authors[0].name, "Smith");
         assert!(raw.has_content());
     }
 
@@ -295,8 +299,8 @@ mod tests {
         let raw = RawCsvData::from_record(&headers, &record, &config, 1).unwrap();
 
         assert_eq!(raw.authors.len(), 2);
-        assert_eq!(raw.authors[0].family_name, "Smith");
-        assert_eq!(raw.authors[1].family_name, "Doe");
+    assert_eq!(raw.authors[0].name, "Smith");
+    assert_eq!(raw.authors[1].name, "Doe");
     }
 
     #[test]

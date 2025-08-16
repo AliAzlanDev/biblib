@@ -127,8 +127,6 @@ impl TryFrom<RawRisData> for crate::Citation {
             journal,
             journal_abbr,
             date: date.clone(),
-            #[allow(deprecated)]
-            year: date.as_ref().map(|d| d.year),
             volume,
             issue,
             pages,
@@ -372,9 +370,10 @@ mod tests {
         raw.add_data(RisTag::Type, "JOUR".to_string());
         raw.add_data(RisTag::Title, "Test Article".to_string());
         raw.add_author(Author {
-            family_name: "Smith".to_string(),
-            given_name: "John".to_string(),
-            affiliation: None,
+            name: "Smith".to_string(),
+            given_name: Some("John".to_string()),
+            middle_name: None,
+            affiliations: Vec::new(),
         });
 
         let citation: crate::Citation = raw.try_into().unwrap();

@@ -166,6 +166,27 @@ pub fn parse_author_name(name: &str) -> (String, String) {
     }
 }
 
+/// Split a full given name string into given name and middle name parts.
+///
+/// Returns a tuple of (given_name, middle_name), where each is Option<String>.
+/// The first token becomes the given_name; remaining tokens (if any) are joined
+/// with a single space and become the middle_name.
+pub fn split_given_and_middle(full_given: &str) -> (Option<String>, Option<String>) {
+    let trimmed = full_given.trim();
+    if trimmed.is_empty() {
+        return (None, None);
+    }
+    let mut parts = trimmed.split_whitespace();
+    let first = parts.next().map(|s| s.to_string());
+    let rest: Vec<&str> = parts.collect();
+    let middle = if rest.is_empty() {
+        None
+    } else {
+        Some(rest.join(" "))
+    };
+    (first, middle)
+}
+
 /// Parses PubMed format dates (e.g., "2020 Jun 9", "2023 May 30", "2023 Jan 3", "2023")
 ///
 /// # Arguments

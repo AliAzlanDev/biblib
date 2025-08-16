@@ -62,14 +62,14 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-biblib = "0.2.0"  # All features enabled by default
+biblib = "0.3.0"  # All features enabled by default
 ```
 
 Or select specific features:
 
 ```toml
 [dependencies]
-biblib = { version = "0.2.0", default-features = false, features = ["csv", "ris"] }
+biblib = { version = "0.3.0", default-features = false, features = ["csv", "ris"] }
 ```
 
 Available features:
@@ -176,13 +176,12 @@ let deduplicator = Deduplicator::with_config(config);
 ### Error Handling
 
 ```rust
-use biblib::{CitationParser, RisParser, CitationError};
+use biblib::{CitationParser, RisParser, ParseError};
 
 let result = RisParser::new().parse("invalid input");
 match result {
-    Ok(citations) => println!("Parsed {} citations", citations.len()),
-    Err(CitationError::InvalidFormat(msg)) => eprintln!("Parse error: {}", msg),
-    Err(e) => eprintln!("Other error: {}", e),
+  Ok(citations) => println!("Parsed {} citations", citations.len()),
+  Err(parse_err) => eprintln!("Parse error: {}", parse_err),
 }
 ```
 
@@ -214,7 +213,7 @@ at your option.
 
 ## Project Status
 
-This crate is under active. There may be some breaking changes.
+This crate is under active development. There may be some breaking changes.
 
 ## Support
 
